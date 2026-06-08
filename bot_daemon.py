@@ -10,7 +10,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # --- تنظیمات توکن و مدل 1.5B ---
 MODEL_NAME = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
-TELEGRAM_TOKEN = "8940324884:AAGZLh7pJ1go9JmWdlMnaoD6j2wWRAnpADY"
+TELEGRAM_TOKEN = "8940324884:AAEZPFjiZlUKd1iuNT4QPBZ6vr0f2ee593c"
 API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
 print("⏳ در حال بارگذاری مدل قدرتمند 1.5B به صورت محلی روی سرور گیت‌هاب...")
