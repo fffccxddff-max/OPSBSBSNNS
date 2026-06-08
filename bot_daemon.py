@@ -9,19 +9,19 @@ import re
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # --- تنظیمات اولیه و بارگذاری مدل بهینه ---
-# استفاده از نسخه 1.5B برای مصرف بهینه رم (حدود ۳ گیگابایت) و باقی ماندن فضای کافی برای ترمینال
+# توکن شما مستقیماً جایگذاری شد داداش
+TELEGRAM_TOKEN = "8940324884:AAGZLh7pJ1go9JmWdlMnaoD6j2wWRAnpADY"
 MODEL_NAME = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
 if not TELEGRAM_TOKEN:
-    print("❌ خطای امنیتی: توکن تلگرام در Secrets گیت‌هاب تنظیم نشده است.")
+    print("❌ خطای امنیتی: توکن تلگرام تنظیم نشده است.")
     sys.exit(1)
 
 print("⏳ در حال بارگذاری غول کدنویسی و ابزارها (نسخه بهینه شده رم)...")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
-# لود کردن مدل در حالت bfloat16 که روی CPU بسیار پایدارتر و کم‌مصرف‌تر است
+# لود کردن مدل در حالت bfloat16 روی CPU
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME, 
     torch_dtype=torch.bfloat16, 
@@ -42,7 +42,6 @@ def web_search(query):
         url = f"https://html.duckduckgo.com/html/?q={query}"
         response = requests.get(url, headers=headers, timeout=10)
         
-        # استخراج متنی ساده از نتایج سرچ
         snippets = re.findall(r'<a class="result__snippet".*?>(.*?)</a>', response.text, re.DOTALL)
         clean_snippets = [re.sub(r'<[^>]+>', '', s).strip() for s in snippets[:3]]
         
@@ -55,14 +54,12 @@ def web_search(query):
 def execute_in_terminal(code_string):
     """ابزار ترمینال: اجرای واقعی کد روی سرور اوبونتوی گیت‌هاب"""
     file_name = "sandbox_test.py"
-    # پاک کردن بلاک‌کدهای احتمالی مارک‌داون برای اجرای کد خالص
     clean_code = re.sub(r'```python|```', '', code_string).strip()
     
     with open(file_name, "w", encoding="utf-8") as f:
         f.write(clean_code)
     
     try:
-        # اجرای کد در ترمینال با محدودیت زمان ۱۰ ثانیه‌ای برای جلوگیری از حلقه بی‌نهایت
         result = subprocess.run(
             ["python3", file_name], 
             capture_output=True, 
@@ -70,9 +67,9 @@ def execute_in_terminal(code_string):
             timeout=10
         )
         if result.returncode == 0:
-            return True, result.stdout # کد بدون خطا اجرا شد
+            return True, result.stdout
         else:
-            return False, result.stderr # کد خطا دارد
+            return False, result.stderr
     except subprocess.TimeoutExpired:
         return False, "خطا: زمان اجرای کد بیش از حد طولانی شد (احتمال حلقه بی‌نهایت)."
     except Exception as e:
@@ -87,7 +84,6 @@ def ask_coder_llm(system_prompt, user_input):
     text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     model_inputs = tokenizer([text], return_tensors="pt")
     
-    # حذف تنظیمات متناقض برای دقت حداکثری و رفع وارنینگ‌ها
     generated_ids = model.generate(
         **model_inputs, 
         max_new_tokens=1500, 
@@ -100,7 +96,6 @@ def ask_coder_llm(system_prompt, user_input):
 # 🚀 موتور پردازش ۶ عامله (با چرخه عیب‌یابی خودکار)
 # ---------------------------------------------------------
 def process_autonomous_code(user_prompt, chat_id, message_id):
-    # فرستادن وضعیت در حال تایپ به تلگرام
     requests.post(f"{API_URL}/sendChatAction", json={"chat_id": chat_id, "action": "typing"})
     print(f"📥 دریافت درخواست جدید از تلگرام: {user_prompt}")
     
@@ -118,7 +113,7 @@ def process_autonomous_code(user_prompt, chat_id, message_id):
     dev_prompt = "تو برنامه‌نویس ارشد هستی. بر اساس نقشه راه زیر، فقط کد خالص پایتون بنویس. هیچ توضیح اضافه‌ای نده."
     generated_code = ask_coder_llm(dev_prompt, logic_plan)
     
-    # ۴ و ۵. شارد چهارم و پنجم: مجری ترمینال و دیباگر خودکار (چرخه خودکار اصلاح خطا)
+    # ۴ و ۵. شارد چهارم و پنجم: مجری ترمینال و دیباگر خودکار
     print("🤖 شارد ۴ و ۵: ورود به چرخه تست ترمینال و دیباگ خودکار...")
     max_retries = 3
     attempt = 0
@@ -146,7 +141,7 @@ def process_autonomous_code(user_prompt, chat_id, message_id):
     delivery_prompt = "تو مسئول تحویل پروژه هستی. یک راهنمای فارسی کوتاه و شیک برای این کد بنویس. خود کد را در متن نگذار."
     explanations = ask_coder_llm(delivery_prompt, f"درخواست: {user_prompt}\nوضعیت تست ترمینال: {is_success}")
     
-    # --- ارسال مجزا به تلگرام جهت قاطی نشدن متن و کد ---
+    # --- ارسال مجزا به تلگرام ---
     status_icon = "🟢" if is_success else "🔴"
     report_message = (
         f"🛠 **پروژه شما با موفقیت در سیستم ۶ شارده پردازش شد داداش!**\n\n"
@@ -158,7 +153,6 @@ def process_autonomous_code(user_prompt, chat_id, message_id):
     code_message = f"💻 **کد نهایی (تست شده و کاملاً خالص):**\n```python\n{generated_code}\n```"
     requests.post(f"{API_URL}/sendMessage", json={"chat_id": chat_id, "text": code_message, "parse_mode": "Markdown"})
     
-    # اگر بعد از ۳ بار تلاش هنوز خطا پابرجا بود، خطای اصلی رو برات می‌فرسته
     if not is_success:
         error_message = f"⚠️ **آخرین خطای ترمینال که رفع نشد:**\n```text\n{terminal_output}\n```"
         requests.post(f"{API_URL}/sendMessage", json={"chat_id": chat_id, "text": error_message, "parse_mode": "Markdown"})
@@ -166,7 +160,7 @@ def process_autonomous_code(user_prompt, chat_id, message_id):
     gc.collect()
 
 # ---------------------------------------------------------
-# چرخه شنود مستمر تلگرام (Long Polling Daemon)
+# چرخه شنود مستمر تلگرام
 # ---------------------------------------------------------
 def start_polling():
     offset = 0
@@ -174,7 +168,7 @@ def start_polling():
         try:
             response = requests.get(f"{API_URL}/getUpdates", params={"offset": offset, "timeout": 30}, timeout=35)
             if response.status_code == 409:
-                print("⚠️ تداخل رانر (خطای ۴۰۹): ورکر جدیدتری روشن شد. این ورکر متوقف می‌شود.")
+                print("⚠️ تداخل رانر (خطای ۴۰۹): ورکر جدیدتری روشن شد.")
                 break
             if response.status_code != 200:
                 time.sleep(5)
@@ -191,7 +185,6 @@ def start_polling():
                 if text and chat_id:
                     process_autonomous_code(text, chat_id, message_id)
         except Exception as e:
-            print(f"⚠️ خطای موقت اینترنت یا دلیوری: {str(e)}")
             time.sleep(5)
 
 if __name__ == "__main__":
