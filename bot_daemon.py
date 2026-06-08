@@ -8,7 +8,7 @@ import subprocess
 import re
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-# --- تنظیمات توکن و ارتقا به مدل 1.5B ---
+# --- تنظیمات توکن و مدل 1.5B ---
 MODEL_NAME = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
 TELEGRAM_TOKEN = "8940324884:AAGZLh7pJ1go9JmWdlMnaoD6j2wWRAnpADY"
 API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
@@ -27,162 +27,109 @@ model = AutoModelForCausalLM.from_pretrained(
 # ---------------------------------------------------------
 
 def web_search(query):
-    """ابزار سرچ اختصاصی در وب"""
     try:
         print(f"🔍 در حال جستجوی وب برای: {query}")
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         url = f"https://html.duckduckgo.com/html/?q={query}"
         response = requests.get(url, headers=headers, timeout=10)
-        
         snippets = re.findall(r'<a class="result__snippet".*?>(.*?)</a>', response.text, re.DOTALL)
         clean_snippets = [re.sub(r'<[^>]+>', '', s).strip() for s in snippets[:3]]
-        
-        if clean_snippets:
-            return "\n".join(clean_snippets)
-        return "نتیجه مستقیمی در سرچ پیدا نشد."
+        return "\n".join(clean_snippets) if clean_snippets else "نتیجه مستقیمی پیدا نشد."
     except Exception as e:
         return f"خطا در سرچ وب: {str(e)}"
 
 def execute_in_terminal(code_string):
-    """ابزار ترمینال: اجرای واقعی کد روی لینوکس اوبونتو"""
     file_name = "sandbox_test.py"
     clean_code = re.sub(r'```python|```', '', code_string).strip()
-    
     with open(file_name, "w", encoding="utf-8") as f:
         f.write(clean_code)
-    
     try:
-        result = subprocess.run(
-            ["python3", file_name], 
-            capture_output=True, 
-            text=True, 
-            timeout=12
-        )
-        if result.returncode == 0:
-            return True, result.stdout
-        else:
-            return False, result.stderr
+        result = subprocess.run(["python3", file_name], capture_output=True, text=True, timeout=12)
+        return (True, result.stdout) if result.returncode == 0 else (False, result.stderr)
     except subprocess.TimeoutExpired:
-        return False, "خطا: زمان اجرای کد به دلیل فرآیند سنگین یا حلقه بی‌نهایت اکسپایر شد."
+        return False, "خطا: زمان اجرای کد اکسپایر شد."
     except Exception as e:
-        return False, f"خطای سیستمی ترمینال: {str(e)}"
+        return False, f"خطای ترمینال: {str(e)}"
 
 def ask_coder_llm(system_prompt, user_input):
-    """رابط گفتگو با مدل با بالاترین دقت قطعی"""
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_input}
     ]
     text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     model_inputs = tokenizer([text], return_tensors="pt")
-    
-    generated_ids = model.generate(
-        **model_inputs, 
-        max_new_tokens=1200, 
-        do_sample=False  # بالاترین میزان دقت منطقی و بدون خطا
-    )
+    generated_ids = model.generate(**model_inputs, max_new_tokens=1200, do_sample=False)
     generated_ids = [output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)]
     return tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
 
 # ---------------------------------------------------------
-# 🚀 موتور پردازش ۵ شارده (دقت ارتقا یافته با مغز 1.5B)
+# 🚀 موتور پردازش ۵ شارده
 # ---------------------------------------------------------
 def process_autonomous_code(user_prompt, chat_id, message_id):
     requests.post(f"{API_URL}/sendChatAction", json={"chat_id": chat_id, "action": "typing"})
     print(f"📥 دریافت درخواست جدید: {user_prompt}")
     
-    # شارد ۱: تحقیق وب
-    print("🤖 شارد ۱: تحقیق...")
     search_context = web_search(user_prompt)
     
-    # شارد ۲: معمار سیستم
-    print("🤖 شارد ۲: مهندسی منطق...")
     think_prompt = "تو یک مهندس معمار الگوریتم هستی. ساختار و الزامات دقیق مورد نیاز کد را گام به گام بدون نوشتن خود کد بنویس."
-    logic_plan = ask_coder_llm(think_prompt, f"درخواست کاربر: {user_prompt}\nداده‌های وب:\n{search_context}")
+    logic_plan = ask_coder_llm(think_prompt, f"درخواست: {user_prompt}\nداده وب:\n{search_context}")
     
-    # شارد ۳: تولید کد اولیه
-    print("🤖 شارد ۳: تولید کد اولیه...")
-    dev_prompt = "تو یک برنامه نویس ارشد پایتون هستی. بر اساس ساختار، فقط و فقط کد خالص پایتون بنویس. هیچ کلمه یا توضیح اضافه‌ای بیرون از بلاک کد ننویس."
+    dev_prompt = "تو یک برنامه نویس ارشد پایتون هستی. فقط و فقط کد خالص پایتون بنویس. هیچ کلمه اضافه‌ای بیرون از بلاک کد ننویس."
     generated_code = ask_coder_llm(dev_prompt, logic_plan)
     
-    # شارد ۴: تست ترمینال واقعی و اصلاح خودکار خطا
-    print("🤖 شارد ۴: ورود به تست اوبونتو و دیباگ...")
-    max_retries = 3
-    attempt = 0
-    is_success = False
-    terminal_output = ""
-    
+    max_retries, attempt, is_success, terminal_output = 3, 0, False, ""
     while attempt < max_retries:
         attempt += 1
-        print(f"🧪 تست در ترمینال (تلاش {attempt})...")
         is_success, terminal_output = execute_in_terminal(generated_code)
+        if is_success: break
         
-        if is_success:
-            print("✅ کد با موفقیت و بدون باگ در ترمینال تایید شد!")
-            break
-        else:
-            print(f"❌ باگ پیدا شد! ارجاع به دیباگر...")
-            debug_prompt = (
-                "تو یک مفسر و دیباگر ارشد پایتون هستی. کد زیر در ترمینال خطا داده است. "
-                "خطا را برطرف کن و نسخه نهایی، کامل و بدون باگ کد را بدون هیچ توضیح اضافی برگردان."
-            )
-            generated_code = ask_coder_llm(debug_prompt, f"کد معیوب:\n{generated_code}\n\nخطای اوبونتو:\n{terminal_output}")
+        debug_prompt = "تو یک دیباگر ارشد هستی. کد زیر خطا داده، اصلاحش کن و فقط کد خالص بدون توضیح برگردان."
+        generated_code = ask_coder_llm(debug_prompt, f"کد معیوب:\n{generated_code}\n\nخطا:\n{terminal_output}")
             
-    # شارد ۵: بررسی نهایی و دلیوری پروژه
-    print("🤖 شارد ۵: تحویل نهایی پروژه...")
-    delivery_prompt = "تو مدیر دلیوری پروژه هستی. یک راهنمای فارسی بسیار کوتاه و دقیق برای اجرای این کد بنویس. خود کد را در این متن نگذار."
-    explanations = ask_coder_llm(delivery_prompt, f"درخواست: {user_prompt}\nموفقیت تست: {is_success}")
+    delivery_prompt = "تو مدیر دلیوری پروژه هستی. یک راهنمای فارسی بسیار کوتاه برای اجرای این کد بنویس. خود کد را در متن نگذار."
+    explanations = ask_coder_llm(delivery_prompt, f"درخواست: {user_prompt}\nموفقیت: {is_success}")
     
-    # استخراج و پاکسازی نهایی کدهای مزاحم
     final_clean_code = re.sub(r'```python|```', '', generated_code).strip()
-    
-    # پیام اول: گزارش وضعیت و راهنما
     status_icon = "🟢" if is_success else "🔴"
-    report_message = (
-        f"🛠 **پروژه شما در سیستم محلی 1.5B پردازش شد داداش!**\n\n"
-        f"📊 **تست ترمینال اوبونتو:** {status_icon} { 'بدون باگ و تایید شده' if is_success else 'دارای خطای حل نشده' }\n\n"
-        f"📝 **راهنمای استفاده:**\n{explanations}"
-    )
+    
+    report_message = f"🛠 **پروژه شما پردازش شد داداش!**\n\n📊 **تست ترمینال:** {status_icon}\n\n📝 **راهنما:**\n{explanations}"
     requests.post(f"{API_URL}/sendMessage", json={"chat_id": chat_id, "text": report_message, "parse_mode": "Markdown", "reply_to_message_id": message_id})
     
-    # پیام دوم: ارسال کد نهایی، کاملاً خالص و بدون خطای تست شده به صورت مجزا
-    code_message = f"💻 **کد اصلی و نهایی (تست شده و بی خطا):**\n```python\n{final_clean_code}\n```"
+    code_message = f"💻 **کد اصلی و نهایی (بی خطا):**\n```python\n{final_clean_code}\n```"
     requests.post(f"{API_URL}/sendMessage", json={"chat_id": chat_id, "text": code_message, "parse_mode": "Markdown"})
     
-    if not is_success:
-        error_message = f"⚠️ **آخرین گزارش خطای ترمینال:**\n```text\n{terminal_output}\n```"
-        requests.post(f"{API_URL}/sendMessage", json={"chat_id": chat_id, "text": error_message, "parse_mode": "Markdown"})
-        
-    if os.path.exists("sandbox_test.py"):
-        os.remove("sandbox_test.py")
-        
-    # آزادسازی فوری رم سرور پس از اتمام هر درخواست
+    if os.path.exists("sandbox_test.py"): os.remove("sandbox_test.py")
     gc.collect()
 
 # ---------------------------------------------------------
-# چرخه هوشمند شنود (با تکنیک پاکسازی پیام‌های گذشته)
+# چرخه هوشمند و جان‌سخت شنود
 # ---------------------------------------------------------
 def start_polling():
-    print("🧹 در حال پاکسازی و فلاش کردن پیام‌های قدیمی صف تلگرام...")
+    # گام طلایی: حذف هرگونه وب‌هوک یا اتصال مرده قدیمی برای جلوگیری از خطای ۴۰۹
+    print("🧹 در حال پاکسازی اتصالات و وب‌هوک‌های قدیمی تلگرام...")
+    try:
+        requests.get(f"{API_URL}/deleteWebhook")
+    except Exception:
+        pass
+
     offset = 0
     try:
         init_resp = requests.get(f"{API_URL}/getUpdates", params={"offset": -1, "timeout": 1}, timeout=5)
-        if init_resp.status_code == 200:
-            results = init_resp.json().get("result", [])
-            if results:
-                offset = results[0]["update_id"] + 1
-                print("✅ صف با موفقیت تخلیه شد! پیام‌های قدیمی انباشته شده حذف شدند.")
-    except Exception as e:
-        print(f"⚠️ هشدارهای اولیه فلاش صف: {e}")
+        if init_resp.status_code == 200 and init_resp.json().get("result"):
+            offset = init_resp.json()["result"][0]["update_id"] + 1
+            print("✅ صف پیام‌های قدیمی با موفقیت تخلیه شد.")
+    except Exception:
+        pass
 
-    print("✅ غول محلی 1.5B بیدار شد داداش! سیستم آماده دریافت پیام‌های جدید شماست...")
+    print("✅ غول محلی 1.5B بیدار شد داداش! سیستم آماده و گوش‌به‌زنگ است...")
     
     while True:
         try:
             response = requests.get(f"{API_URL}/getUpdates", params={"offset": offset, "timeout": 30}, timeout=35)
-            if response.status_code == 409:
-                break
-            if response.status_code != 200:
+            
+            # رفع باگ بزرگ: اگر خطای تداخل داد، دیگر اسکریپت را نمی‌بندیم!
+            if response.status_code == 409 or response.status_code != 200:
+                print(f"⚠️ تداخل یا خطای سرور تلگرام ({response.status_code}). ۵ ثانیه صبر...")
                 time.sleep(5)
                 continue
                 
@@ -196,7 +143,8 @@ def start_polling():
                 
                 if text and chat_id:
                     process_autonomous_code(text, chat_id, message_id)
-        except Exception:
+        except Exception as e:
+            print(f"⚠️ خطای ناگهانی در چرخه اصلی: {e}. تلاش مجدد...")
             time.sleep(5)
 
 if __name__ == "__main__":
