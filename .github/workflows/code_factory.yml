@@ -33,5 +33,5 @@ jobs:
 
       - name: Run Local Agent Daemon
         env:
-          TELEGRAM_TOKEN: "8940324884:AAGZLh7pJ1go9JmWdlMnaoD6j2wWRAnpADY"
+          TELEGRAM_TOKEN: "8940324884:AAEZPFjiZlUKd1iuNT4QPBZ6vr0f2ee593c"
         run: python bot_daemon.py
