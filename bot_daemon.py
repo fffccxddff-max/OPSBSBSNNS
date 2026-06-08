@@ -9,7 +9,7 @@ import re
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # --- تنظیمات: توکن را از متغیر محیطی بخوان (امن‌تر) ---
-MODEL_NAME = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
+MODEL_NAME = "Qwen/Qwen2.5-Coder-3B-Instruct"
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "TOKEN_خودت_را_اینجا_یا_در_ENV_بگذار")
 API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
