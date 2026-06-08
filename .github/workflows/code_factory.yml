@@ -1,51 +1,37 @@
-name: 24-7 Autonomous AI Coder Bot
+name: 24-7 Pure Local AI Coder Bot
 
 on:
   schedule:
-    - cron: '0 */5 * * *' # هر ۵ ساعت یک‌بار به صورت خودکار تمدید می‌شود تا ربات ۲۴ ساعته زنده بماند
-  workflow_dispatch: # امکان استارت زدن دستی ربات از تب Actions در گیت‌هاب
+    - cron: '0 */5 * * *' # تمدید خودکار هر ۵ ساعت
+  workflow_dispatch: # استارت دستی
 
 jobs:
-  run-autonomous-bot:
+  run-local-bot:
     runs-on: ubuntu-latest
 
     steps:
-      # ۱. دریافت آخرین نسخه کدهای ریپازیتوری
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # ۲. راه‌اندازی محیط پایتون
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      # ۳. ⚡ سیستم کَش پکیج‌های پایتون برای بالا رفتن سرعت استارت‌های بعدی
-      - name: Cache Pip Packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      # ۴. ⚡ سیستم کَش مدل هوش مصنوعی ۶ گیگابایتی روی سرور ابری گیت‌هاب
+      # سیستم کَش برای اینکه دانلود مدل در استارت‌های بعدی ۱ ثانیه طول بکشه
       - name: Cache Hugging Face Models
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
-          key: ${{ runner.os }}-hf-qwen-3b
+          key: ${{ runner.os }}-hf-qwen-0.5b
           restore-keys: |
             ${{ runner.os }}-hf-
 
-      # ۵. نصب ابزارها و کتابخانه‌های مورد نیاز پردازش هوش مصنوعی
       - name: Install Dependencies
         run: |
           pip install torch transformers accelerate requests
 
-      # ۶. اجرای ابَر ربات ۶ عامله (اتصال به ترمینال اوبونتو و شنود مستمر تلگرام)
-      - name: Run Autonomous Daemon
+      - name: Run Local Agent Daemon
         env:
-          # خواندن توکن امنیتی ربات تلگرام از بخش Secrets گیت‌هاب
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_TOKEN: "8940324884:AAGZLh7pJ1go9JmWdlMnaoD6j2wWRAnpADY"
         run: python bot_daemon.py
