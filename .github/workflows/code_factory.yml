@@ -1,0 +1,46 @@
+name: 24-7 Persistent AI Coder Bot
+
+on:
+  schedule:
+    - cron: '0 */5 * * *' # هر ۵ ساعت یک‌بار برای تمدید خودکار اجرا می‌شود
+  workflow_dispatch: # امکان اجرای دستی از داخل گیت‌هاب
+
+jobs:
+  run-daemon:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # کش کردن پکیج‌ها و مدل هوش مصنوعی برای افزایش سرعت استارت اولیه
+      - name: Cache Pip Packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Cache Hugging Face Models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: ${{ runner.os }}-hf-qwen-3b
+          restore-keys: |
+            ${{ runner.os }}-hf-
+
+      - name: Install Dependencies
+        run: |
+          pip install torch transformers accelerate requests
+
+      - name: Run 24/7 Telegram Daemon
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        # اجرای اسکریپت به صورت دائم
+        run: python bot_daemon.py
