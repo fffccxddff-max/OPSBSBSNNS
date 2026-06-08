@@ -8,24 +8,27 @@ import subprocess
 import re
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-# --- تنظیمات اولیه و بارگذاری مدل ---
-MODEL_NAME = "Qwen/Qwen2.5-Coder-3B-Instruct"
+# --- تنظیمات اولیه و بارگذاری مدل بهینه ---
+# استفاده از نسخه 1.5B برای مصرف بهینه رم (حدود ۳ گیگابایت) و باقی ماندن فضای کافی برای ترمینال
+MODEL_NAME = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
 if not TELEGRAM_TOKEN:
-    print("❌ خطای امنیتی: توکن تلگرام تنظیم نشده است.")
+    print("❌ خطای امنیتی: توکن تلگرام در Secrets گیت‌هاب تنظیم نشده است.")
     sys.exit(1)
 
-print("⏳ در حال بارگذاری غول کدنویسی و ابزارها...")
+print("⏳ در حال بارگذاری غول کدنویسی و ابزارها (نسخه بهینه شده رم)...")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+
+# لود کردن مدل در حالت bfloat16 که روی CPU بسیار پایدارتر و کم‌مصرف‌تر است
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME, 
-    torch_dtype=torch.float16, 
+    torch_dtype=torch.bfloat16, 
     device_map="cpu",
     low_cpu_mem_usage=True
 )
-print("✅ سیستم آماده است. شنود تلگرام شروع شد...")
+print("✅ سیستم با موفقیت بالا آمد داداش! شنود مستمر تلگرام شروع شد...")
 
 # ---------------------------------------------------------
 # 🛠 ابزارهای بومی ایجنت (ترمینال + سرچ وب)
@@ -39,7 +42,7 @@ def web_search(query):
         url = f"https://html.duckduckgo.com/html/?q={query}"
         response = requests.get(url, headers=headers, timeout=10)
         
-        # یک استخراج متنی ساده از نتایج سرچ
+        # استخراج متنی ساده از نتایج سرچ
         snippets = re.findall(r'<a class="result__snippet".*?>(.*?)</a>', response.text, re.DOTALL)
         clean_snippets = [re.sub(r'<[^>]+>', '', s).strip() for s in snippets[:3]]
         
@@ -83,7 +86,13 @@ def ask_coder_llm(system_prompt, user_input):
     ]
     text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     model_inputs = tokenizer([text], return_tensors="pt")
-    generated_ids = model.generate(**model_inputs, max_new_tokens=1500, do_sample=False, temperature=0.0)
+    
+    # حذف تنظیمات متناقض برای دقت حداکثری و رفع وارنینگ‌ها
+    generated_ids = model.generate(
+        **model_inputs, 
+        max_new_tokens=1500, 
+        do_sample=False
+    )
     generated_ids = [output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)]
     return tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
 
@@ -91,14 +100,16 @@ def ask_coder_llm(system_prompt, user_input):
 # 🚀 موتور پردازش ۶ عامله (با چرخه عیب‌یابی خودکار)
 # ---------------------------------------------------------
 def process_autonomous_code(user_prompt, chat_id, message_id):
+    # فرستادن وضعیت در حال تایپ به تلگرام
     requests.post(f"{API_URL}/sendChatAction", json={"chat_id": chat_id, "action": "typing"})
+    print(f"📥 دریافت درخواست جدید از تلگرام: {user_prompt}")
     
     # ۱. شارد اول: سرچ وب و تحقیق
-    print("🤖 شارد ۱: تحقیق و سرچ...")
+    print("🤖 شارد ۱: تحقیق و سرچ در وب...")
     search_context = web_search(user_prompt)
     
     # ۲. شارد دوم: تفکر عمیق و معماری
-    print("🤖 شارد ۲: تفکر و طراحی منطق...")
+    print("🤖 شارد ۲: تفکر و طراحی منطق برنامه...")
     think_prompt = "تو یک معمار نرم‌افزار هستی. با توجه به درخواست کاربر و نتایج جستجوی زیر، گام به گام فکر کن و ساختار الگوریتم را بنویس. کدی ننویس."
     logic_plan = ask_coder_llm(think_prompt, f"درخواست: {user_prompt}\nنتایج تحقیق وب:\n{search_context}")
     
@@ -107,8 +118,8 @@ def process_autonomous_code(user_prompt, chat_id, message_id):
     dev_prompt = "تو برنامه‌نویس ارشد هستی. بر اساس نقشه راه زیر، فقط کد خالص پایتون بنویس. هیچ توضیح اضافه‌ای نده."
     generated_code = ask_coder_llm(dev_prompt, logic_plan)
     
-    # ۴ و ۵. شارد چهارم و پنجم: مجری ترمینال و دیباگر خودکار (چرخه اصلاح خطا)
-    print("🤖 شارد ۴ و ۵: ورود به چرخه تست ترمینال و دیباگ...")
+    # ۴ و ۵. شارد چهارم و پنجم: مجری ترمینال و دیباگر خودکار (چرخه خودکار اصلاح خطا)
+    print("🤖 شارد ۴ و ۵: ورود به چرخه تست ترمینال و دیباگ خودکار...")
     max_retries = 3
     attempt = 0
     is_success = False
@@ -116,7 +127,7 @@ def process_autonomous_code(user_prompt, chat_id, message_id):
     
     while attempt < max_retries:
         attempt += 1
-        print(f"🧪 تست کد در ترمینال (تلاش {attempt} از {max_retries})...")
+        print(f"🧪 تست کد در ترمینال اوبونتو (تلاش {attempt} از {max_retries})...")
         is_success, terminal_output = execute_in_terminal(generated_code)
         
         if is_success:
@@ -132,21 +143,22 @@ def process_autonomous_code(user_prompt, chat_id, message_id):
             
     # ۶. شارد ششم: مستندسازی و تحویل نهایی
     print("🤖 شارد ۶: آماده‌سازی گزارش دلیوری...")
-    delivery_prompt = "تو مسئول تحویل پروژه هستی. یک راهنمای فارسی کوتاه برای این کد بنویس. خود کد را در متن نگذار."
+    delivery_prompt = "تو مسئول تحویل پروژه هستی. یک راهنمای فارسی کوتاه و شیک برای این کد بنویس. خود کد را در متن نگذار."
     explanations = ask_coder_llm(delivery_prompt, f"درخواست: {user_prompt}\nوضعیت تست ترمینال: {is_success}")
     
-    # --- ارسال مجزا به تلگرام ---
+    # --- ارسال مجزا به تلگرام جهت قاطی نشدن متن و کد ---
     status_icon = "🟢" if is_success else "🔴"
     report_message = (
-        f"🛠 **پروژه شما با موفقیت پردازش شد داداش!**\n\n"
-        f"📊 **وضعیت تست در ترمینال اوبونتو:** {status_icon} { 'بدون خطا' if is_success else 'دارای خطای حل نشده' }\n\n"
+        f"🛠 **پروژه شما با موفقیت در سیستم ۶ شارده پردازش شد داداش!**\n\n"
+        f"📊 **وضعیت تست در ترمینال اوبونتو:** {status_icon} { 'بدون خطا و تایید شده' if is_success else 'دارای خطای حل نشده' }\n\n"
         f"📝 **راهنمای اجرای کد:**\n{explanations}"
     )
     requests.post(f"{API_URL}/sendMessage", json={"chat_id": chat_id, "text": report_message, "parse_mode": "Markdown", "reply_to_message_id": message_id})
     
-    code_message = f"💻 **کد نهایی (تست شده در ترمینال):**\n```python\n{generated_code}\n```"
+    code_message = f"💻 **کد نهایی (تست شده و کاملاً خالص):**\n```python\n{generated_code}\n```"
     requests.post(f"{API_URL}/sendMessage", json={"chat_id": chat_id, "text": code_message, "parse_mode": "Markdown"})
     
+    # اگر بعد از ۳ بار تلاش هنوز خطا پابرجا بود، خطای اصلی رو برات می‌فرسته
     if not is_success:
         error_message = f"⚠️ **آخرین خطای ترمینال که رفع نشد:**\n```text\n{terminal_output}\n```"
         requests.post(f"{API_URL}/sendMessage", json={"chat_id": chat_id, "text": error_message, "parse_mode": "Markdown"})
@@ -154,7 +166,7 @@ def process_autonomous_code(user_prompt, chat_id, message_id):
     gc.collect()
 
 # ---------------------------------------------------------
-# چرخه شنود مستمر
+# چرخه شنود مستمر تلگرام (Long Polling Daemon)
 # ---------------------------------------------------------
 def start_polling():
     offset = 0
@@ -162,6 +174,7 @@ def start_polling():
         try:
             response = requests.get(f"{API_URL}/getUpdates", params={"offset": offset, "timeout": 30}, timeout=35)
             if response.status_code == 409:
+                print("⚠️ تداخل رانر (خطای ۴۰۹): ورکر جدیدتری روشن شد. این ورکر متوقف می‌شود.")
                 break
             if response.status_code != 200:
                 time.sleep(5)
@@ -177,7 +190,8 @@ def start_polling():
                 
                 if text and chat_id:
                     process_autonomous_code(text, chat_id, message_id)
-        except Exception:
+        except Exception as e:
+            print(f"⚠️ خطای موقت اینترنت یا دلیوری: {str(e)}")
             time.sleep(5)
 
 if __name__ == "__main__":
