@@ -1,24 +1,26 @@
-name: 24-7 Persistent AI Coder Bot
+name: 24-7 Autonomous AI Coder Bot
 
 on:
   schedule:
-    - cron: '0 */5 * * *' # هر ۵ ساعت یک‌بار برای تمدید خودکار اجرا می‌شود
-  workflow_dispatch: # امکان اجرای دستی از داخل گیت‌هاب
+    - cron: '0 */5 * * *' # هر ۵ ساعت یک‌بار به صورت خودکار تمدید می‌شود تا ربات ۲۴ ساعته زنده بماند
+  workflow_dispatch: # امکان استارت زدن دستی ربات از تب Actions در گیت‌هاب
 
 jobs:
-  run-daemon:
+  run-autonomous-bot:
     runs-on: ubuntu-latest
 
     steps:
+      # ۱. دریافت آخرین نسخه کدهای ریپازیتوری
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # ۲. راه‌اندازی محیط پایتون
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      # کش کردن پکیج‌ها و مدل هوش مصنوعی برای افزایش سرعت استارت اولیه
+      # ۳. ⚡ سیستم کَش پکیج‌های پایتون برای بالا رفتن سرعت استارت‌های بعدی
       - name: Cache Pip Packages
         uses: actions/cache@v4
         with:
@@ -27,6 +29,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
+      # ۴. ⚡ سیستم کَش مدل هوش مصنوعی ۶ گیگابایتی روی سرور ابری گیت‌هاب
       - name: Cache Hugging Face Models
         uses: actions/cache@v4
         with:
@@ -35,12 +38,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-hf-
 
+      # ۵. نصب ابزارها و کتابخانه‌های مورد نیاز پردازش هوش مصنوعی
       - name: Install Dependencies
         run: |
           pip install torch transformers accelerate requests
 
-      - name: Run 24/7 Telegram Daemon
+      # ۶. اجرای ابَر ربات ۶ عامله (اتصال به ترمینال اوبونتو و شنود مستمر تلگرام)
+      - name: Run Autonomous Daemon
         env:
+          # خواندن توکن امنیتی ربات تلگرام از بخش Secrets گیت‌هاب
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        # اجرای اسکریپت به صورت دائم
         run: python bot_daemon.py
