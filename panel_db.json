@@ -18,26 +18,5 @@
         "is_proxy_type": false,
         "use_runner_balancer": true,
         "optimization": false
-    },
-    "primeconfigfree_1": {
-        "uuid": "77cf212f-baa8-4d94-9843-1ea849f0c72f",
-        "total_limit_bytes": 10485760,
-        "used_bytes": 1324,
-        "clean_ip": "172.64.149.23",
-        "custom_host": "",
-        "status": "OFFLINE",
-        "last_active_time": 1781091641.1227224,
-        "down_speed": 0,
-        "up_speed": 0,
-        "created_at": 1781091605,
-        "expire_seconds": 2592000,
-        "active": true,
-        "coefficient": 1.0,
-        "real_traffic": false,
-        "max_ips": 2,
-        "is_proxy_type": false,
-        "use_runner_balancer": false,
-        "optimization": false,
-        "tg_user_id": "8517754313"
     }
 }
