@@ -6,7 +6,7 @@
         "clean_ip": "172.64.149.23",
         "custom_host": "",
         "status": "ONLINE",
-        "last_active_time": 1781111709.7829094,
+        "last_active_time": 1781111720.0024118,
         "down_speed": 0,
         "up_speed": 0,
         "created_at": 1781100414,
@@ -17,7 +17,7 @@
         "max_ips": 5,
         "is_proxy_type": false,
         "use_runner_balancer": true,
-        "optimization": true
+        "optimization": false
     },
     "primeconfigfree_1": {
         "uuid": "509f459d-b2ef-48c0-b164-8be81c136749",
@@ -27,8 +27,8 @@
         "custom_host": "",
         "status": "ONLINE",
         "last_active_time": 1781111711.0850055,
-        "down_speed": 391116,
-        "up_speed": 77687,
+        "down_speed": 0,
+        "up_speed": 0,
         "created_at": 1781111571,
         "expire_seconds": 2592000,
         "active": true,
@@ -37,7 +37,7 @@
         "max_ips": 2,
         "is_proxy_type": false,
         "use_runner_balancer": false,
-        "optimization": true,
+        "optimization": false,
         "tg_user_id": "8361121191"
     }
 }
