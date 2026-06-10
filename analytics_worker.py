@@ -33,9 +33,14 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 TELEGRAM_ADMIN_ID = os.environ.get("TELEGRAM_ADMIN_ID", "YOUR_ADMIN_CHAT_ID_HERE")
 TELEGRAM_CHANNEL_ID = os.environ.get("TELEGRAM_CHANNEL_ID", "@YOUR_CHANNEL_USERNAME_HERE")
 
+# تنظیمات اختیاری استریم زنده ویدئویی RTMP کانال تلگرام
+TG_RTMP_URL = os.environ.get("TG_RTMP_URL", "")
+TG_RTMP_KEY = os.environ.get("TG_RTMP_KEY", "")
+
 # ساختارهای داده زنده و درون‌حافظه‌ای
 SYSTEM_LIVE_LOGS = []
 RUNNER_LIVE_LOGS = ["🔄 سیستم تست رانر آماده است."]
+DPI_BLOCKED_LOGS = []
 USER_TARGET_SITES = {}
 USER_LIVE_IPS = {}
 PANEL_DATABASE = {}
@@ -275,14 +280,12 @@ def sync_xray_core():
 
     any_optimized = any(u_data.get("optimization", False) for u_data in PANEL_DATABASE.values() if u_data.get("active", True))
     
-    sockopt_config = {}
-    if any_optimized:
-        sockopt_config = {
-            "tcpFastOpen": True,
-            "congestionControl": "bbr",
-            "interface": "",
-            "mark": 0
-        }
+    sockopt_config = {
+        "tcpFastOpen": True,
+        "congestionControl": "bbr",
+        "interface": "",
+        "mark": 0
+    }
 
     db_backup_string = base64.b64encode(json.dumps(PANEL_DATABASE).encode('utf-8')).decode('utf-8')
 
@@ -300,12 +303,18 @@ def sync_xray_core():
                 "settings": {"clients": vless_clients, "decryption": "none"},
                 "streamSettings": {
                     "network": "ws", 
-                    "wsSettings": {"path": "/killpv2"},
+                    "wsSettings": {
+                        "path": "/killpv2",
+                        "headers": {
+                            "Host": runner_host
+                        }
+                    },
                     "sockopt": sockopt_config
                 },
                 "sniffing": {
                     "enabled": True, 
-                    "destOverride": ["http", "tls"]
+                    "destOverride": ["http", "tls"],
+                    "metadataOnly": false
                 }
             },
             {
@@ -330,6 +339,13 @@ def sync_xray_core():
             "tag": "direct_out",
             "streamSettings": {
                 "sockopt": sockopt_config
+            },
+            "settings": {
+                "domainStrategy": "UseIP"
+            },
+            "mux": {
+                "enabled": True,
+                "concurrency": 16
             }
         }]
     }
@@ -408,11 +424,24 @@ class SanaeiMobileXuiServer(BaseHTTPRequestHandler):
 
         # تغییر کلید متعادل‌سازی رانر برای تمامی کاربران
         if action == 'toggle_all_runner_balancer':
-            # بررسی اینکه آیا در حال حاضر اکثراً فعال هستند یا نه تا کلید هوشمند عمل کند
             any_disabled = any(not v.get("use_runner_balancer", False) for v in PANEL_DATABASE.values())
             target_state = True if any_disabled else False
             for u_name in PANEL_DATABASE:
                 PANEL_DATABASE[u_name]["use_runner_balancer"] = target_state
+            save_database()
+            sync_xray_core()
+            push_subs_to_github()
+            self.send_response(303)
+            self.send_header('Location', '/')
+            self.end_headers()
+            return
+
+        # فعالسازی بهینه‌سازی سرعت و پینگ (OPT) برای تمامی کاربران
+        if action == 'toggle_all_optimization':
+            any_opt_disabled = any(not v.get("optimization", False) for v in PANEL_DATABASE.values())
+            target_state = True if any_opt_disabled else False
+            for u_name in PANEL_DATABASE:
+                PANEL_DATABASE[u_name]["optimization"] = target_state
             save_database()
             sync_xray_core()
             push_subs_to_github()
@@ -667,6 +696,7 @@ class SanaeiMobileXuiServer(BaseHTTPRequestHandler):
                 "users": response_data, 
                 "sys_logs": SYSTEM_LIVE_LOGS[-30:],
                 "runner_logs": RUNNER_LIVE_LOGS[-20:],
+                "dpi_logs": DPI_BLOCKED_LOGS[-30:],
                 "server_cpu": srv_cpu,
                 "server_ram": srv_ram,
                 "total_sys_used": format_bytes_display(total_sys_bytes),
@@ -838,6 +868,7 @@ class SanaeiMobileXuiServer(BaseHTTPRequestHandler):
                         <button onclick="switchPanelTab('clients')" id="btn-tab-clients" class="flex-1 py-2.5 rounded-xl transition-all text-slate-400 hover:text-slate-200">👤 کلاینت‌ها</button>
                         <button onclick="switchPanelTab('tg_configs')" id="btn-tab-tg_configs" class="flex-1 py-2.5 rounded-xl transition-all text-slate-400 hover:text-slate-200">🤖 کانفیگ ربات</button>
                         <button onclick="switchPanelTab('terminal')" id="btn-tab-terminal" class="flex-1 py-2.5 rounded-xl transition-all text-slate-400 hover:text-slate-200">💻 ترمینال</button>
+                        <button onclick="switchPanelTab('dpi_logs')" id="btn-tab-dpi_logs" class="flex-1 py-2.5 rounded-xl transition-all text-slate-400 hover:text-slate-200">🛡️ لاگ DPI</button>
                         <button onclick="switchPanelTab('logs')" id="btn-tab-logs" class="flex-1 py-2.5 rounded-xl transition-all text-slate-400 hover:text-slate-200">📋 لاگ</button>
                     </div>
 
@@ -863,7 +894,7 @@ class SanaeiMobileXuiServer(BaseHTTPRequestHandler):
                             </div>
                         </div>
 
-                        <div class="bg-slate-900/80 backdrop-blur-md border border-cyan-500/30 p-4 rounded-2xl shadow-lg">
+                        <div class="bg-slate-900/80 backdrop-blur-md border border-cyan-500/30 p-4 rounded-2xl shadow-lg space-y-2">
                             <div class="flex justify-between items-center">
                                 <h4 class="text-xs font-extrabold text-cyan-400 flex items-center gap-1.5">⚖️ سوئیچ متمرکز انتقال ترافیک به رانر</h4>
                                 <form action="/" method="POST" class="inline">
@@ -873,8 +904,17 @@ class SanaeiMobileXuiServer(BaseHTTPRequestHandler):
                                     </button>
                                 </form>
                             </div>
+                            <div class="flex justify-between items-center pt-2 border-t border-slate-800/60">
+                                <h4 class="text-xs font-extrabold text-emerald-400 flex items-center gap-1.5">🚀 فعالسازی OPT برای همه کلاینت‌ها</h4>
+                                <form action="/" method="POST" class="inline">
+                                    <input type="hidden" name="action" value="toggle_all_optimization">
+                                    <button type="submit" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-[11px] px-4 py-1.5 rounded-xl font-bold transition-all shadow-md shadow-emerald-950/40 cursor-pointer">
+                                        ⚡ فعال کردن OPT برای همه کانفیگ‌ها
+                                    </button>
+                                </form>
+                            </div>
                             <p class="text-[9px] text-slate-400 mt-2 leading-relaxed">
-                                💡 با فشردن این دکمه، وضعیت اتصال تمام کاربران سیستم فوراً به رانر تغییر می‌کند تا مانع از قطع شدن یا از کار افتادن آدرس موقت در اثر اتصالات همزمان شود.
+                                💡 با فعال کردن OPT، کل پایداری شبکه افزایش یافته، نوسان کانفیگ‌ها به حداقل رسیده و پینگ کاربران به شدت افت می‌کند.
                             </p>
                         </div>
 
@@ -958,7 +998,7 @@ class SanaeiMobileXuiServer(BaseHTTPRequestHandler):
 
                                 <div class="grid grid-cols-2 gap-2">
                                     <div class="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-xl px-3 py-2">
-                                        <label for="optimization" class="text-[10px] text-emerald-400 font-bold">⚡ بهینه‌سازی سرعت و پینگ (Opt)</label>
+                                        <label for="optimization" class="text-[10px] text-emerald-400 font-bold">⚡ بهینه‌سازی سرعت (Opt)</label>
                                         <input type="checkbox" id="optimization" name="optimization" value="true" class="w-4 h-4 accent-emerald-500">
                                     </div>
                                     <div class="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-xl px-3 py-2">
@@ -1029,6 +1069,16 @@ class SanaeiMobileXuiServer(BaseHTTPRequestHandler):
                                 </div>
                                 <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 font-bold text-xs px-4 rounded-xl text-white transition-all cursor-pointer">اجرا</button>
                             </form>
+                        </div>
+                    </div>
+
+                    <div id="section-tab-dpi_logs" class="space-y-4 hidden">
+                        <div class="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden">
+                            <div class="p-3 text-xs text-red-400 bg-slate-950/80 flex justify-between items-center border-b border-slate-800">
+                                <span class="font-bold flex items-center gap-1">🛡️ ردیاب زنده حملات مسدودسازی و DPI فیلترینگ</span>
+                                <button type="button" onclick="copyDpiLogs();" class="bg-red-600/20 hover:bg-red-600/40 text-red-400 text-[10px] px-2 py-0.5 rounded-lg font-bold border border-red-500/30 cursor-pointer">📋 کپی لاگ DPI</button>
+                            </div>
+                            <div id="dpi_terminal" class="bg-slate-950 h-96 overflow-y-auto p-3 font-mono text-[10px] text-rose-500" style="direction: ltr;"></div>
                         </div>
                     </div>
 
@@ -1115,7 +1165,7 @@ class SanaeiMobileXuiServer(BaseHTTPRequestHandler):
                     let usDataSeries = [];
 
                     function switchPanelTab(tabId) {{
-                        const tabs = ['dashboard', 'clients', 'tg_configs', 'terminal', 'logs'];
+                        const tabs = ['dashboard', 'clients', 'tg_configs', 'terminal', 'dpi_logs', 'logs'];
                         tabs.forEach(t => {{
                             const section = document.getElementById('section-tab-' + t);
                             const btn = document.getElementById('btn-tab-' + t);
@@ -1210,6 +1260,7 @@ class SanaeiMobileXuiServer(BaseHTTPRequestHandler):
                     }}
 
                     function copySystemLogs() {{ robustCopy(document.getElementById('sys_terminal').innerText, "📋 کل لاگ‌های سیستم کپی شد داداش!"); }}
+                    function copyDpiLogs() {{ robustCopy(document.getElementById('dpi_terminal').innerText, "📋 لاگ‌های ردیاب DPI کپی شد داداش!"); }}
                     function copyRunnerLogs() {{ robustCopy(document.getElementById('runner_terminal').innerText, "📋 لاگ اختصاصی بخش رانر کپی شد داداش!"); }}
 
                     async function triggerRunnerTest() {{
@@ -1266,6 +1317,18 @@ class SanaeiMobileXuiServer(BaseHTTPRequestHandler):
                             term.innerHTML = "";
                             data.sys_logs.forEach(l => {{ term.innerHTML += "<div class='border-b border-slate-900 pb-0.5 mb-0.5 text-slate-500'>" + l + "</div>"; }});
                             if (isScrolledDown) term.scrollTop = term.scrollHeight;
+
+                            const dpiTerm = document.getElementById('dpi_terminal');
+                            if (dpiTerm) {{
+                                let isDpiScrolledDown = dpiTerm.scrollHeight - dpiTerm.clientHeight <= dpiTerm.scrollTop + 30;
+                                dpiTerm.innerHTML = "";
+                                if (data.dpi_logs && data.dpi_logs.length > 0) {{
+                                    data.dpi_logs.forEach(l => {{ dpiTerm.innerHTML += "<div class='border-b border-slate-900 pb-0.5 mb-0.5 text-rose-500 font-mono'>" + l + "</div>"; }});
+                                }} else {{
+                                    dpiTerm.innerHTML = "<div class='text-slate-500 italic'>🛡️ هیچ تلاش فیلترینگ یا انسدادی ردیابی نشده است. شبکه در امنیت کامل قرار دارد.</div>";
+                                }}
+                                if (isDpiScrolledDown) dpiTerm.scrollTop = dpiTerm.scrollHeight;
+                            }}
 
                             if (data.runner_logs) updateRunnerTerminal(data.runner_logs);
 
@@ -1396,7 +1459,7 @@ class SanaeiMobileXuiServer(BaseHTTPRequestHandler):
         self.end_headers()
 
 def xray_live_log_sniffer():
-    global SYSTEM_LIVE_LOGS, USER_LIVE_IPS
+    global SYSTEM_LIVE_LOGS, USER_LIVE_IPS, DPI_BLOCKED_LOGS
     while not os.path.exists(XRAY_LOG_PATH):
         time.sleep(1)
 
@@ -1415,6 +1478,14 @@ def xray_live_log_sniffer():
 
         SYSTEM_LIVE_LOGS.append(clean_line)
         if len(SYSTEM_LIVE_LOGS) > 100: SYSTEM_LIVE_LOGS.pop(0)
+
+        # تحلیل زنده تلاش‌های انسداد و DPI فیلترینگ
+        lower_line = clean_line.lower()
+        if any(keyword in lower_line for keyword in ["rejected", "blocked", "reset by peer", "connection reset", "dpi block", "handshake failed", "timeout", "closed raw connection"]):
+            timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+            dpi_record = f"[{timestamp}] ⚠️ {clean_line}"
+            DPI_BLOCKED_LOGS.append(dpi_record)
+            if len(DPI_BLOCKED_LOGS) > 100: DPI_BLOCKED_LOGS.pop(0)
 
         for user_name in list(PANEL_DATABASE.keys()):
             user_uuid = PANEL_DATABASE[user_name].get("uuid", "")
@@ -1487,344 +1558,19 @@ def speed_and_ip_cleaner():
         if p_changed:
             save_database()
 
-# ==========================================
-# 🤖 ماژول ربات تلگرام هوشمند توزیع کانفیگ
-# ==========================================
-def init_telegram_bot_service():
-    if not TELEGRAM_BOT_TOKEN or "YOUR_BOT_TOKEN" in TELEGRAM_BOT_TOKEN:
-        print("⚠️ Telegram Bot Token is missing. Bot module bypassed.", flush=True)
+# فرآیند مستقل ارسال لاگ و مانیتورینگ آنلاین به چنل تلگرام (به صورت لایو فید متنی)
+def channel_live_status_streamer(bot):
+    if not TELEGRAM_CHANNEL_ID or "YOUR_CHANNEL" in TELEGRAM_CHANNEL_ID:
         return
-
-    try:
-        import telebot
-        from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-        
-        bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
-        
-        @bot.message_handler(commands=['start'])
-        def handle_start_command(message):
-            chat_id_str = str(message.chat.id)
+    
+    stream_msg_id = None
+    print("📺 Telegram Channel Text-Live Stream Activated", flush=True)
+    
+    while True:
+        try:
+            total_active = sum(1 for v in PANEL_DATABASE.values() if v.get("active", True))
+            total_online = sum(1 for k, v in PANEL_DATABASE.items() if (len(USER_LIVE_IPS.get(k, {})) > 0 or v.get("status") == "ONLINE") and v.get("active", True))
+            cpu, ram = get_server_resources()
             
-            # چت ایدی ادمین اصلی سیستم جهت باز شدن منوی ریپلای اتمیک
-            if chat_id_str == str(TELEGRAM_ADMIN_ID) and not message.text.startswith('/start claim'):
-                g_config = load_giveaway_config()
-                total_free_cnt = sum(1 for k in PANEL_DATABASE.keys() if k.startswith("primeconfigfree_"))
-                
-                admin_panel_text = (
-                    f"👑 *سلام داداش! به ربات توزیع کانفیگ خوش اومدی.*\n\n"
-                    f"📊 *وضعیت چالش فعلی کانال:*\n"
-                    f"👥 تعداد دریافتی: `{g_config['claimed_count']}` از `{g_config['max_claims']}` نفر\n"
-                    f"💾 حجم تعیین شده: `{g_config.get('volume_value', 0)} {g_config.get('volume_unit', 'GB')}`\n"
-                    f"⚙️ وضعیت کمپین: `{g_config.get('status', 'inactive')}`\n\n"
-                    f"🛠️ *کل کلاینت‌های رایگان صادر شده:* `{total_free_cnt}` عدد"
-                )
-                
-                markup = ReplyKeyboardMarkup(resize_keyboard=True)
-                markup.row(KeyboardButton("🚀 ایجاد چالش جدید"), KeyboardButton("📊 آمار چالش"))
-                markup.row(KeyboardButton("🛠️ مدیریت وضعیت چالش"))
-                
-                bot.send_message(message.chat.id, admin_panel_text, parse_mode="Markdown", reply_markup=markup)
-                return
-
-            # بخش کلیک دکمه شیشه‌ای توسط کاربران معمولی چنل (بدون ذکر داداش)
-            if 'claim' in message.text:
-                g_config = load_giveaway_config()
-                
-                if g_config.get("status", "inactive") != "active" or g_config["max_claims"] == 0:
-                    bot.send_message(message.chat.id, "❌ در حال حاضر هیچ چالش یا قرعه‌کشی فعال مخزنی وجود نداره!")
-                    return
-                
-                if chat_id_str in g_config["claimed_users"]:
-                    bot.send_message(message.chat.id, "⚠️ شما قبلاً کانفیگ رایگان خودت رو از این چالش دریافت کردی! هر نفر فقط یک کانفیگ سهمیه داره.")
-                    return
-                
-                if g_config["claimed_count"] >= g_config["max_claims"]:
-                    bot.send_message(message.chat.id, "🏁 متاسفانه ظرفیت این دوره چالش به اتمام رسید! گوش به زنگ پست‌های بعدی کانال باش.")
-                    return
-                
-                i = 1
-                while f"primeconfigfree_{i}" in PANEL_DATABASE:
-                    i += 1
-                new_username = f"primeconfigfree_{i}"
-                
-                # برای کلاینت آیدی تلگرامش رو نگه می‌داریم تا بعداً بتونه حجمش رو پیگیری کنه
-                final_bytes = int(g_config["volume_gb"] * 1024 * 1024 * 1024)
-                PANEL_DATABASE[new_username] = {
-                    "uuid": str(uuid.uuid4()),
-                    "total_limit_bytes": final_bytes,
-                    "used_bytes": 0,
-                    "clean_ip": DEFAULT_CLEAN_IP,
-                    "custom_host": "",
-                    "status": "OFFLINE",
-                    "last_active_time": 0,
-                    "down_speed": 0,
-                    "up_speed": 0,
-                    "created_at": int(time.time()),
-                    "expire_seconds": 2592000, 
-                    "active": True,
-                    "coefficient": 1.0,
-                    "real_traffic": False,
-                    "max_ips": 2,
-                    "is_proxy_type": False,
-                    "use_runner_balancer": False,
-                    "optimization": False,
-                    "tg_user_id": chat_id_str # ذخیره آی‌دی کاربر
-                }
-                
-                g_config["claimed_count"] += 1
-                g_config["claimed_users"].append(chat_id_str)
-                
-                # اگر ظرفیت تکمیل شد، وضعیت چالش تغییر کند و روی پیام کانال ریپلای زده شود
-                if g_config["claimed_count"] >= g_config["max_claims"]:
-                    g_config["status"] = "finished"
-                    if g_config.get("channel_msg_id"):
-                        try:
-                            bot.send_message(TELEGRAM_CHANNEL_ID, "🏁 ظرفیت این چالش به اتمام رسید و تمام اکانت‌ها دریافت شدند!", reply_to_message_id=g_config["channel_msg_id"])
-                        except Exception:
-                            pass
-                
-                save_database()
-                save_giveaway_config(g_config)
-                sync_xray_core()
-                push_subs_to_github()
-                
-                t_host = runner_host
-                vless_link = f"vless://{PANEL_DATABASE[new_username]['uuid']}@{DEFAULT_CLEAN_IP}:443?path=%2Fkillpv2&security=tls&encryption=none&insecure=0&type=ws&allowInsecure=0&host={t_host}&sni={t_host}#{new_username}"
-                
-                vol_display = f"{g_config.get('volume_value', 0)} {g_config.get('volume_unit', 'GB')}"
-                success_user_text = (
-                    f"🎉 *تبریک! کانفیگ اختصاصی شما با موفقیت ساخته شد.*\n\n"
-                    f"👤 نام کلاینت شما: `{new_username}`\n"
-                    f"💾 حجم اختصاص یافته: `{vol_display}`\n\n"
-                    f"👇 جهت کپی، روی متن کانفیگ زیر کلیک کن:\n\n"
-                    f"`{vless_link}`"
-                )
-                
-                # نمایش منو کیبورد جهت مدیریت و پیگیری وضعیت حجم برای بقیه کلاینت‌ها
-                user_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-                user_keyboard.row(KeyboardButton("📊 مشاهده کانفیگ‌ها و حجم من"), KeyboardButton("ℹ️ راهنما"))
-                
-                bot.send_message(message.chat.id, success_user_text, parse_mode="Markdown", reply_markup=user_keyboard)
-                
-                try:
-                    admin_alert_msg = f"🔔 کلاینت `{new_username}` توسط کاربر `{message.from_user.username or chat_id_str}` دریافت شد داداش.\n📊 آمار چالش: {g_config['claimed_count']}/{g_config['max_claims']}"
-                    bot.send_message(TELEGRAM_ADMIN_ID, admin_alert_msg)
-                except Exception:
-                    pass
-            else:
-                # پیام پیشفرض برای کاربرانی که بدون لینک کلیم یا خارج از پروسه ادمین ربات رو استارت میکنن
-                welcome_user_text = (
-                    "👋 سلام به ربات kill_pv2 خوش اومدی!\n"
-                    "از منوی دکمه‌ای زیر می‌تونی وضعیت کانفیگ اختصاصی خودت رو مدیریت کنی."
-                )
-                user_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-                user_keyboard.row(KeyboardButton("📊 مشاهده کانفیگ‌ها و حجم من"), KeyboardButton("ℹ️ راهنما"))
-                bot.send_message(message.chat.id, welcome_user_text, reply_markup=user_keyboard)
-
-        # پیگیری و نمایش حجم کلاینت‌ها از دیتابیس پنل در ربات تلگرام
-        @bot.message_handler(func=lambda msg: msg.text == "📊 مشاهده کانفیگ‌ها و حجم من")
-        def handle_user_stats_request(message):
-            chat_id_str = str(message.chat.id)
-            user_found_configs = []
-            
-            # جستجو در دیتابیس زنده پنل بر اساس تلگرام آیدی ذخیره شده
-            for u_name, u_data in PANEL_DATABASE.items():
-                if str(u_data.get("tg_user_id", "")) == chat_id_str:
-                    user_found_configs.append((u_name, u_data))
-                    
-            if not user_found_configs:
-                # حالت فال‌بک: اگر دیتای کاربر هاردکد بود یا قبلا ست نشده بود، بر اساس نام کاربری‌های حاوی آیدی یا دیتای کلیم شده قدیمی چک میکنیم
-                bot.send_message(message.chat.id, "⚠️ متاسفانه هیچ کانفیگ فعالی به نام تلگرام شما ثبت نشده است.")
-                return
-                
-            now = int(time.time())
-            response_msg = "📊 *وضعیت سرویس و کانفیگ‌های شما:*\n\n"
-            
-            for u_name, u_data in user_found_configs:
-                total_limit = u_data.get("total_limit_bytes", 0)
-                used = u_data.get("used_bytes", 0)
-                rem = max(0, total_limit - used) if total_limit > 0 else 0
-                
-                # محاسبه زمان باقی‌مانده
-                passed_seconds = now - u_data.get("created_at", now)
-                total_seconds = u_data.get("expire_seconds", 2592000)
-                rem_seconds = max(0, total_seconds - passed_seconds)
-                rem_d = int(rem_seconds // 86400)
-                rem_h = int((rem_seconds % 86400) // 3600)
-                
-                status_icon = "🟢" if u_data.get("active", True) else "🔴"
-                
-                # تولید لینک مجدد کانفیگ برای کپی آسان کاربر
-                t_host = runner_host if u_data.get("use_runner_balancer", False) else (u_data.get("custom_host", "").strip() or runner_host)
-                vless_link = f"vless://{u_data.get('uuid', '')}@{DEFAULT_CLEAN_IP}:443?path=%2Fkillpv2&security=tls&encryption=none&insecure=0&type=ws&allowInsecure=0&host={t_host}&sni={t_host}#{u_name}"
-                
-                response_msg += (
-                    f"{status_icon} *نام سرویس:* `{u_name}`\n"
-                    f"💾 *کل حجم مجاز:* `{format_bytes_display(total_limit) if total_limit > 0 else 'نامحدود'}`\n"
-                    f"📊 *حجم مصرف شده:* `{format_bytes_display(used)}`\n"
-                    f"💾 *حجم باقی‌مانده:* `{format_bytes_display(rem) if total_limit > 0 else 'نامحدود'}`\n"
-                    f"⏳ *زمان باقی‌مانده:* `{rem_d} روز و {rem_h} ساعت`\n\n"
-                    f"📋 *لینک اتصال شما (جهت کپی ضربه بزنید):*\n"
-                    f"`{vless_link}`\n"
-                    f"─────────────────\n"
-                )
-                
-            bot.send_message(message.chat.id, response_msg, parse_mode="Markdown")
-
-        @bot.message_handler(func=lambda msg: msg.text == "ℹ️ راهنما")
-        def handle_user_help_request(message):
-            help_text = (
-                "ℹ️ *راهنمای اتصال به سرویس:*\n\n"
-                "1️⃣ ابتدا نرم‌افزار متناسب با سیستم‌عامل خود را دانلود کنید:\n"
-                "▪️ سیستم‌عامل اندروید: `v2rayNG` یا `NekoBox`\n"
-                "▪️ سیستم‌عامل آیفون (iOS): `v2box` یا `FoXray`\n"
-                "▪️ سیستم‌عامل ویندوز: `v2rayN`\n\n"
-                "2️⃣ کانفیگ دریافتی را کپی کرده و در برنامه وارد کنید (گزینه Import from clipboard).\n"
-                "3️⃣ اتصال را برقرار کنید و لذت ببرید!"
-            )
-            bot.send_message(message.chat.id, help_text, parse_mode="Markdown")
-
-        # پردازش منوی متنی اختصاصی ادمین
-        @bot.message_handler(func=lambda msg: str(msg.chat.id) == str(TELEGRAM_ADMIN_ID))
-        def handle_admin_menu_clicks(message):
-            if message.text == "🚀 ایجاد چالش جدید":
-                msg_sent = bot.send_message(message.chat.id, "🔢 لطفاً ظرفیت چالش (تعداد نفرات) را وارد کن داداش:")
-                bot.register_next_step_handler(msg_sent, process_capacity_step)
-            elif message.text == "📊 آمار چالش":
-                g_config = load_giveaway_config()
-                stat_msg = (
-                    f"📊 *آمار زنده چالش مخزن لوپ:*\n\n"
-                    f"👥 ظرفیت پر شده: `{g_config['claimed_count']}` از `{g_config['max_claims']}`\n"
-                    f"💾 حجم توزیع شده: `{g_config.get('volume_value', 0)} {g_config.get('volume_unit', 'GB')}`\n"
-                    f"⚙️ وضعیت فعلی کمپین: `{g_config.get('status', 'inactive')}`"
-                )
-                bot.send_message(message.chat.id, stat_msg, parse_mode="Markdown")
-            elif message.text == "🛠️ مدیریت وضعیت چالش":
-                g_config = load_giveaway_config()
-                status_curr = g_config.get("status", "inactive")
-                inline_markup = InlineKeyboardMarkup()
-                
-                if status_curr == "active":
-                    inline_markup.add(InlineKeyboardButton("🛑 لغو (غیرفعال‌سازی موقت)", callback_data="tg_camp_cancel"))
-                elif status_curr == "cancelled":
-                    inline_markup.add(InlineKeyboardButton("🟢 فعال‌سازی مجدد چالش", callback_data="tg_camp_activate"))
-                
-                inline_markup.add(InlineKeyboardButton("🗑️ حذف و ریست کامل چالش", callback_data="tg_camp_delete"))
-                bot.send_message(message.chat.id, f"⚙️ وضعیت فعلی چالش شما: *{status_curr}*\nیک اقدام را انتخاب کن داداش:", parse_mode="Markdown", reply_markup=inline_markup)
-
-        def process_capacity_step(message):
-            try:
-                capacity = int(message.text.strip())
-                msg_sent = bot.send_message(message.chat.id, "💾 مقدار حجم کلاینت را وارد کن داداش:")
-                bot.register_next_step_handler(msg_sent, lambda m: process_volume_value_step(m, capacity))
-            except Exception:
-                bot.send_message(message.chat.id, "❌ ظرفیت نامعتبر بود داداش. لطفاً دوباره دکمه ساخت را بزن.")
-
-        def process_volume_value_step(message, capacity):
-            try:
-                volume_val = float(message.text.strip())
-                inline_markup = InlineKeyboardMarkup()
-                inline_markup.add(
-                    InlineKeyboardButton("GB گیگابایت", callback_data=f"tg_unit_GB_{capacity}_{volume_val}"),
-                    InlineKeyboardButton("MB مگابایت", callback_data=f"tg_unit_MB_{capacity}_{volume_val}")
-                )
-                bot.send_message(message.chat.id, "📐 واحد حجم را انتخاب کن داداش:", reply_markup=inline_markup)
-            except Exception:
-                bot.send_message(message.chat.id, "❌ مقدار حجم نامعتبر بود داداش.")
-
-        # پاسخ به کلیک دکمه‌های شیشه‌ای ادمین
-        @bot.callback_query_handler(func=lambda call: True)
-        def handle_camp_callbacks(call):
-            if str(call.message.chat.id) != str(TELEGRAM_ADMIN_ID):
-                return
-                
-            g_config = load_giveaway_config()
-            
-            if call.data.startswith("tg_unit_"):
-                parts = call.data.split("_")
-                unit = parts[2]
-                capacity = int(parts[3])
-                volume_val = float(parts[4])
-                
-                volume_gb = volume_val if unit == "GB" else volume_val / 1024.0
-                
-                g_config = {
-                    "max_claims": capacity,
-                    "volume_value": volume_val,
-                    "volume_unit": unit,
-                    "volume_gb": volume_gb,
-                    "claimed_count": 0,
-                    "claimed_users": [],
-                    "status": "active",
-                    "channel_msg_id": None
-                }
-                save_giveaway_config(g_config)
-                
-                bot_info = bot.get_me()
-                share_url = f"https://t.me/{bot_info.username}?start=claim"
-                markup = InlineKeyboardMarkup()
-                markup.add(InlineKeyboardButton(text="🎁 دریافت کانفیگ رایگان کلیک کنید", url=share_url))
-                
-                channel_post_text = (
-                    f"🚀 *کانفیگ‌های رایگان و پرسرعت چالش جدید رسید!*\n\n"
-                    f"👥 سقف ظرفیت چالش: `{capacity} نفر`\n"
-                    f"💾 سهمیه حجم هر نفر: `{volume_val} {unit}`\n\n"
-                    f"👇 کاربران عزیز، لطفاً روی دکمه زیر کلیک کرده و داخل ربات دکمه *Start* رو فشار بدید تا لینک اختصاصی صادر بشه:"
-                )
-                
-                sent_ch_msg = bot.send_message(TELEGRAM_CHANNEL_ID, channel_post_text, reply_markup=markup, parse_mode="Markdown")
-                g_config["channel_msg_id"] = sent_ch_msg.message_id
-                save_giveaway_config(g_config)
-                
-                bot.answer_callback_query(call.id, "چالش ایجاد شد!")
-                bot.send_message(call.message.chat.id, f"✅ چالش با موفقیت به کانال ارسال شد داداش!")
-                
-            elif call.data == "tg_camp_cancel":
-                g_config["status"] = "cancelled"
-                save_giveaway_config(g_config)
-                bot.answer_callback_query(call.id, "کمپین لغو شد.")
-                bot.edit_message_text(f"🛑 وضعیت چالش به *cancelled* (غیرفعال) تغییر یافت داداش.", call.message.chat.id, call.message.message_id, parse_mode="Markdown")
-                
-            elif call.data == "tg_camp_activate":
-                g_config["status"] = "active"
-                save_giveaway_config(g_config)
-                bot.answer_callback_query(call.id, "کمپین فعال شد.")
-                bot.edit_message_text(f"🟢 وضعیت چالش دوباره به *active* (فعال و زنده) تغییر یافت داداش.", call.message.chat.id, call.message.message_id, parse_mode="Markdown")
-                
-            elif call.data == "tg_camp_delete":
-                g_config = {"max_claims": 0, "volume_value": 0.0, "volume_unit": "GB", "volume_gb": 0.0, "claimed_count": 0, "claimed_users": [], "status": "inactive", "channel_msg_id": None}
-                save_giveaway_config(g_config)
-                bot.answer_callback_query(call.id, "کمپین حذف شد.")
-                bot.edit_message_text("🗑️ دیتای چالش ریست و به طور کامل حذف شد داداش.", call.message.chat.id, call.message.message_id)
-
-        threading.Thread(target=lambda: bot.infinity_polling(timeout=20, long_polling_timeout=10), daemon=True).start()
-        print("🤖 TELEGRAM BOT MULTI-THREAD LOOP RUNNING SUCCESSFULLY", flush=True)
-        
-    except Exception as e:
-        print(f"⚠️ Failed to load Telegram Bot Module: {str(e)}", flush=True)
-
-print("\n==============================================================", flush=True)
-print("🛡️ SINGLE-PANEL MOBILE MODE INITIALIZED ON PORT 8086", flush=True)
-print(f"🔗 LIVE GATEWAY HOST: https://{tunnel_host}", flush=True)
-print(f"🚀 RUNNER HOST: https://{runner_host}", flush=True)
-print("==============================================================\n", flush=True)
-
-sync_xray_core()
-push_subs_to_github()
-init_telegram_bot_service()
-
-threading.Thread(target=lambda: HTTPServer(('127.0.0.1', 8086), SanaeiMobileXuiServer).serve_forever(), daemon=True).start()
-threading.Thread(target=xray_live_log_sniffer, daemon=True).start()
-threading.Thread(target=speed_and_ip_cleaner, daemon=True).start()
-
-total_duration = 19800
-elapsed = 0
-last_github_update_time = time.time()
-
-while elapsed < total_duration:
-    time.sleep(5)
-    elapsed += 5
-    check_expiration_and_limits()
-    if time.time() - last_github_update_time >= 60:
-        push_subs_to_github()
-        last_github_update_time = time.time()
+            stream_text = (
+                f"📡 *[استریم زنده مانیتورینگ پایداری kill_
