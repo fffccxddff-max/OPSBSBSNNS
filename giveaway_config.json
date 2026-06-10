@@ -1,10 +1,12 @@
 {
     "max_claims": 82736382626281616181991919191,
-    "volume_value": Infinity,
+    "volume_value": 8.273638262628162e+28,
     "volume_unit": "GB",
-    "volume_gb": Infinity,
-    "claimed_count": 0,
-    "claimed_users": [],
+    "volume_gb": 8.273638262628162e+28,
+    "claimed_count": 1,
+    "claimed_users": [
+        "8517754313"
+    ],
     "status": "active",
-    "channel_msg_id": 5
+    "channel_msg_id": 6
 }
