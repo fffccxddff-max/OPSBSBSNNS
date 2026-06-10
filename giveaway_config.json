@@ -1,8 +1,8 @@
 {
-    "max_claims": 10,
-    "volume_value": 1.0,
+    "max_claims": 3,
+    "volume_value": 2.0,
     "volume_unit": "GB",
-    "volume_gb": 1.0,
+    "volume_gb": 2.0,
     "claimed_count": 0,
     "claimed_users": [],
     "status": "active",
