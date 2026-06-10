@@ -32,7 +32,7 @@
         "up_speed": 0,
         "created_at": 1781111961,
         "expire_seconds": 2592000,
-        "active": false,
+        "active": true,
         "coefficient": 1.0,
         "real_traffic": true,
         "max_ips": 10,
