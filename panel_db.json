@@ -2,7 +2,7 @@
     "Main_kill_pv2_8086": {
         "uuid": "9972d746-7347-42f4-b404-4d038cf15223",
         "total_limit_bytes": 0,
-        "used_bytes": 4879816,
+        "used_bytes": 0,
         "clean_ip": "172.64.149.23",
         "custom_host": "",
         "status": "ONLINE",
@@ -13,10 +13,10 @@
         "expire_seconds": 31536000,
         "active": true,
         "coefficient": 1.0,
-        "real_traffic": false,
+        "real_traffic": true,
         "max_ips": 2,
         "is_proxy_type": false,
         "use_runner_balancer": true,
-        "optimization": false
+        "optimization": true
     }
 }
