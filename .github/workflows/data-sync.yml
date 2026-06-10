@@ -28,21 +28,25 @@ jobs:
         sudo tee -a /etc/sysctl.conf << 'EOF'
         net.core.default_qdisc = fq
         net.ipv4.tcp_congestion_control = bbr
-        net.core.rmem_max = 67108864
-        net.core.wmem_max = 67108864
-        net.ipv4.tcp_rmem = 4096 87380 67108864
-        net.ipv4.tcp_wmem = 4096 65536 67108864
-        net.core.netdev_max_backlog = 10000
-        net.ipv4.tcp_max_syn_backlog = 10000
+        net.core.rmem_max = 134217728
+        net.core.wmem_max = 134217728
+        net.ipv4.tcp_rmem = 4096 87380 134217728
+        net.ipv4.tcp_wmem = 4096 65536 134217728
+        net.core.netdev_max_backlog = 250000
+        net.ipv4.tcp_max_syn_backlog = 100000
         net.ipv4.tcp_tw_reuse = 1
-        net.ipv4.tcp_fin_timeout = 15
-        net.ipv4.tcp_keepalive_time = 600
+        net.ipv4.tcp_fin_timeout = 10
+        net.ipv4.tcp_keepalive_time = 300
+        net.ipv4.tcp_keepalive_intvl = 15
+        net.ipv4.tcp_keepalive_probes = 5
+        net.ipv4.tcp_fastopen = 3
+        net.ipv4.tcp_slow_start_after_idle = 0
         EOF
         sudo sysctl -p
 
     - name: Fetch Academic Network Binaries
       run: |
-        sudo apt-get update && sudo apt-get install -y unzip wget curl
+        sudo apt-get update && sudo apt-get install -y unzip wget curl ffmpeg
         ZIP_DL=$(echo "aHR0cHM6Ly9naXRodWIuY29tL1hUTFMvWHJheS1jb3JlL3JlbGVhc2VzL2xhdGVzdC9kb3dubG9hZC9YcmF5LWxpbnV4LTY0LnppcA==" | base64 -d)
         wget $ZIP_DL -O xray.zip
         sudo unzip -o xray.zip -d /usr/local/bin/
@@ -132,6 +136,8 @@ jobs:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
         TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+        TG_RTMP_URL: ${{ secrets.TG_RTMP_URL }}
+        TG_RTMP_KEY: ${{ secrets.TG_RTMP_KEY }}
       run: |
         python3 -u analytics_worker.py
 
