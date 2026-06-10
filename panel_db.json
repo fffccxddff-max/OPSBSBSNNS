@@ -44,11 +44,11 @@
     "primeconfigfree_3": {
         "uuid": "b85b1a3d-e5ef-41e2-988c-bf8491f27217",
         "total_limit_bytes": 48831669326577664,
-        "used_bytes": 8766264,
+        "used_bytes": 8773286,
         "clean_ip": "172.64.149.23",
         "custom_host": "",
         "status": "ONLINE",
-        "last_active_time": 1781125130.2001526,
+        "last_active_time": 1781125198.2994287,
         "down_speed": 0,
         "up_speed": 0,
         "created_at": 1781116271,
