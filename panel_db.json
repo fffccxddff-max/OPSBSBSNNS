@@ -2,13 +2,13 @@
     "67": {
         "uuid": "266590be-d121-4df9-bd6a-6a01b8a8d0d3",
         "total_limit_bytes": 5368709120,
-        "used_bytes": 3241113558,
+        "used_bytes": 3260630352,
         "clean_ip": "172.64.149.23",
         "custom_host": "",
         "status": "ONLINE",
-        "last_active_time": 1781115105.8557312,
-        "down_speed": 600559,
-        "up_speed": 101633,
+        "last_active_time": 1781115136.3325875,
+        "down_speed": 908181,
+        "up_speed": 153692,
         "created_at": 1781100414,
         "expire_seconds": 432000,
         "active": true,
@@ -57,7 +57,7 @@
         "real_traffic": false,
         "max_ips": 2,
         "is_proxy_type": false,
-        "use_runner_balancer": false,
+        "use_runner_balancer": true,
         "optimization": false,
         "tg_user_id": "8517754313"
     }
