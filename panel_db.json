@@ -5,7 +5,7 @@
         "used_bytes": 2042716970,
         "clean_ip": "172.64.149.23",
         "custom_host": "",
-        "status": "ONLINE",
+        "status": "OFFLINE",
         "last_active_time": 1781104763.4513142,
         "down_speed": 0,
         "up_speed": 0,
@@ -16,7 +16,7 @@
         "real_traffic": true,
         "max_ips": 5,
         "is_proxy_type": false,
-        "use_runner_balancer": true,
+        "use_runner_balancer": false,
         "optimization": true
     }
 }
