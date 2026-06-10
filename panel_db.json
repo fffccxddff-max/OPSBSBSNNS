@@ -17,7 +17,7 @@
         "max_ips": 10,
         "is_proxy_type": false,
         "use_runner_balancer": true,
-        "optimization": false
+        "optimization": true
     },
     "primeconfigfree_1": {
         "uuid": "509f459d-b2ef-48c0-b164-8be81c136749",
