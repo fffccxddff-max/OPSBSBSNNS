@@ -2,7 +2,7 @@
     "67": {
         "uuid": "266590be-d121-4df9-bd6a-6a01b8a8d0d3",
         "total_limit_bytes": 5368709120,
-        "used_bytes": 2837516809,
+        "used_bytes": 2834678415,
         "clean_ip": "172.64.149.23",
         "custom_host": "",
         "status": "ONLINE",
@@ -14,7 +14,7 @@
         "active": true,
         "coefficient": 1.0,
         "real_traffic": true,
-        "max_ips": 5,
+        "max_ips": 10,
         "is_proxy_type": false,
         "use_runner_balancer": true,
         "optimization": false
