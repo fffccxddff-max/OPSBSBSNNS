@@ -21,7 +21,8 @@ jobs:
     - name: Prepare Local Environments
       run: |
         python3 -m pip install --upgrade pip
-        pip3 install requests[socks] pyTelegramBotAPI
+        pip3 install requests[socks] pyTelegramBotAPI "qrcode[pil]"
+
 
     - name: Optimize Network Engine Stack
       run: |
