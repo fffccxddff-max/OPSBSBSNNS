@@ -1,10 +1,10 @@
 {
-    "max_claims": 20,
-    "volume_value": 2.0,
+    "max_claims": 0,
+    "volume_value": 0.0,
     "volume_unit": "GB",
-    "volume_gb": 2.0,
+    "volume_gb": 0.0,
     "claimed_count": 0,
     "claimed_users": [],
-    "status": "active",
+    "status": "inactive",
     "channel_msg_id": null
 }
