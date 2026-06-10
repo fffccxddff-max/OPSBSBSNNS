@@ -1,8 +1,8 @@
 {
     "max_claims": 0,
-    "volume_value": 0.0,
-    "volume_unit": "GB",
-    "volume_gb": 0.0,
+    "volume_value": 1.8273638262628163e+116,
+    "volume_unit": "MB",
+    "volume_gb": 1.7845349865847816e+113,
     "claimed_count": 0,
     "claimed_users": [],
     "status": "active",
