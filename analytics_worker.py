@@ -33,7 +33,7 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 TELEGRAM_ADMIN_ID = os.environ.get("TELEGRAM_ADMIN_ID", "YOUR_ADMIN_CHAT_ID_HERE")
 TELEGRAM_CHANNEL_ID = os.environ.get("TELEGRAM_CHANNEL_ID", "@YOUR_CHANNEL_USERNAME_HERE")
 
-# تنظیمات اختیاری استریم زنده ویدئویی RTMP کانال تلگرام
+# تنظیمات استریم زنده ویدئویی RTMP کانال تلگرام (اختیاری)
 TG_RTMP_URL = os.environ.get("TG_RTMP_URL", "")
 TG_RTMP_KEY = os.environ.get("TG_RTMP_KEY", "")
 
@@ -314,7 +314,7 @@ def sync_xray_core():
                 "sniffing": {
                     "enabled": True, 
                     "destOverride": ["http", "tls"],
-                    "metadataOnly": false
+                    "metadataOnly": False
                 }
             },
             {
@@ -1252,11 +1252,11 @@ class SanaeiMobileXuiServer(BaseHTTPRequestHandler):
                     }}
 
                     function fallbackCopy(text, successMessage) {{
-                        const textArea = document.createElement("textarea");
-                        textArea.value = text; textArea.style.position = "fixed"; textArea.style.opacity = "0";
-                        document.body.appendChild(textArea); textArea.focus(); textArea.select();
+                        const text_area_tmp = document.createElement("textarea");
+                        text_area_tmp.value = text; text_area_tmp.style.position = "fixed"; text_area_tmp.style.opacity = "0";
+                        document.body.appendChild(text_area_tmp); text_area_tmp.focus(); text_area_tmp.select();
                         try {{ document.execCommand('copy'); alert(successMessage); }} catch (err) {{ alert("کپی دستی نیاز است"); }}
-                        document.body.removeChild(textArea);
+                        document.body.removeChild(text_area_tmp);
                     }}
 
                     function copySystemLogs() {{ robustCopy(document.getElementById('sys_terminal').innerText, "📋 کل لاگ‌های سیستم کپی شد داداش!"); }}
@@ -1479,7 +1479,7 @@ def xray_live_log_sniffer():
         SYSTEM_LIVE_LOGS.append(clean_line)
         if len(SYSTEM_LIVE_LOGS) > 100: SYSTEM_LIVE_LOGS.pop(0)
 
-        # تحلیل زنده تلاش‌های انسداد و DPI فیلترینگ
+        # آنالیز و صید زنده پکت‌های فیلترینگ و DPI فعال
         lower_line = clean_line.lower()
         if any(keyword in lower_line for keyword in ["rejected", "blocked", "reset by peer", "connection reset", "dpi block", "handshake failed", "timeout", "closed raw connection"]):
             timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
@@ -1558,7 +1558,7 @@ def speed_and_ip_cleaner():
         if p_changed:
             save_database()
 
-# فرآیند مستقل ارسال لاگ و مانیتورینگ آنلاین به چنل تلگرام (به صورت لایو فید متنی)
+# استریم متنی زنده وضعیت سرور و مانیتورینگ آنلاین به چنل تلگرام
 def channel_live_status_streamer(bot):
     if not TELEGRAM_CHANNEL_ID or "YOUR_CHANNEL" in TELEGRAM_CHANNEL_ID:
         return
@@ -1573,4 +1573,260 @@ def channel_live_status_streamer(bot):
             cpu, ram = get_server_resources()
             
             stream_text = (
-                f"📡 *[استریم زنده مانیتورینگ پایداری kill_
+                f"📡 *[استریم زنده مانیتورینگ پایداری kill_pv2]*\n\n"
+                f"⏱️ آخرین به‌روزرسانی: `{time.strftime('%H:%M:%S')}`\n"
+                f"🟢 کاربران آنلاین همزمان: `{total_online}` کلاینت فعال\n"
+                f"👤 کل اکانت‌های فعال پنل: `{total_active}`\n"
+                f"💾 آی‌پی تمیز کلودفلر: `{DEFAULT_CLEAN_IP}`\n\n"
+                f"⚙️ *وضعیت منابع فیزیکی رانر:*\n"
+                f"🖥️ میزان درگیری پردازنده: `{cpu}%`\n"
+                f"📼 مصرف حافظه موقت (RAM): `{ram}%`\n"
+                f"🛡️ هسته اکسری فعال: `🟢 ACTIVE`\n\n"
+                f"💡 این پیام هر ۳۰ ثانیه بدون ایجاد نویز، ویرایش و بروزرسانی می‌شود داداش."
+            )
+            
+            if not stream_msg_id:
+                sent_msg = bot.send_message(TELEGRAM_CHANNEL_ID, stream_text, parse_mode="Markdown")
+                stream_msg_id = sent_msg.message_id
+            else:
+                bot.edit_message_text(stream_text, TELEGRAM_CHANNEL_ID, stream_msg_id, parse_mode="Markdown")
+                
+        except Exception as e:
+            print(f"⚠️ Live Stream Connection Error: {str(e)}", flush=True)
+            stream_msg_id = None
+            
+        time.sleep(30)
+
+# ==========================================
+# 🤖 ماژول ربات تلگرام هوشمند توزیع کانفیگ
+# ==========================================
+def init_telegram_bot_service():
+    if not TELEGRAM_BOT_TOKEN or "YOUR_BOT_TOKEN" in TELEGRAM_BOT_TOKEN:
+        print("⚠️ Telegram Bot Token is missing. Bot module bypassed.", flush=True)
+        return
+
+    try:
+        import telebot
+        from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+        
+        bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
+        
+        @bot.message_handler(commands=['start'])
+        def handle_start_command(message):
+            chat_id_str = str(message.chat.id)
+            
+            if chat_id_str == str(TELEGRAM_ADMIN_ID) and not message.text.startswith('/start claim'):
+                g_config = load_giveaway_config()
+                total_free_cnt = sum(1 for k in PANEL_DATABASE.keys() if k.startswith("primeconfigfree_"))
+                
+                admin_panel_text = (
+                    f"👑 *سلام داداش! به ربات توزیع کانفیگ خوش اومدی.*\n\n"
+                    f"📊 *وضعیت چالش فعلی کانال:*\n"
+                    f"👥 تعداد دریافتی: `{g_config['claimed_count']}` از `{g_config['max_claims']}` نفر\n"
+                    f"💾 حجم تعیین شده: `{g_config.get('volume_value', 0)} {g_config.get('volume_unit', 'GB')}`\n"
+                    f"⚙️ وضعیت کمپین: `{g_config.get('status', 'inactive')}`\n\n"
+                    f"🛠️ *کل کلاینت‌های رایگان صادر شده:* `{total_free_cnt}` عدد"
+                )
+                
+                markup = ReplyKeyboardMarkup(resize_keyboard=True)
+                markup.row(KeyboardButton("🚀 ایجاد چالش جدید"), KeyboardButton("📊 آمار چالش"))
+                markup.row(KeyboardButton("🛠️ مدیریت وضعیت چالش"))
+                
+                bot.send_message(message.chat.id, admin_panel_text, parse_mode="Markdown", reply_markup=markup)
+                return
+
+            if 'claim' in message.text:
+                g_config = load_giveaway_config()
+                
+                if g_config.get("status", "inactive") != "active" or g_config["max_claims"] == 0:
+                    bot.send_message(message.chat.id, "❌ در حال حاضر هیچ چالش یا قرعه‌کشی فعال مخزنی وجود نداره!")
+                    return
+                
+                if chat_id_str in g_config["claimed_users"]:
+                    bot.send_message(message.chat.id, "⚠️ شما قبلاً کانفیگ رایگان خودت رو از این چالش دریافت کردی! هر نفر فقط یک کانفیگ سهمیه داره.")
+                    return
+                
+                if g_config["claimed_count"] >= g_config["max_claims"]:
+                    bot.send_message(message.chat.id, "🏁 متاسفانه ظرفیت این دوره چالش به اتمام رسید! گوش به زنگ پست‌های بعدی کانال باش.")
+                    return
+                
+                i = 1
+                while f"primeconfigfree_{i}" in PANEL_DATABASE:
+                    i += 1
+                new_username = f"primeconfigfree_{i}"
+                
+                final_bytes = int(g_config["volume_gb"] * 1024 * 1024 * 1024)
+                PANEL_DATABASE[new_username] = {
+                    "uuid": str(uuid.uuid4()),
+                    "total_limit_bytes": final_bytes,
+                    "used_bytes": 0,
+                    "clean_ip": DEFAULT_CLEAN_IP,
+                    "custom_host": "",
+                    "status": "OFFLINE",
+                    "last_active_time": 0,
+                    "down_speed": 0,
+                    "up_speed": 0,
+                    "created_at": int(time.time()),
+                    "expire_seconds": 2592000, 
+                    "active": True,
+                    "coefficient": 1.0,
+                    "real_traffic": False,
+                    "max_ips": 2,
+                    "is_proxy_type": False,
+                    "use_runner_balancer": False,
+                    "optimization": True,
+                    "tg_user_id": chat_id_str
+                }
+                
+                g_config["claimed_count"] += 1
+                g_config["claimed_users"].append(chat_id_str)
+                
+                if g_config["claimed_count"] >= g_config["max_claims"]:
+                    g_config["status"] = "finished"
+                    if g_config.get("channel_msg_id"):
+                        try:
+                            bot.send_message(TELEGRAM_CHANNEL_ID, "🏁 ظرفیت این چالش به اتمام رسید و تمام اکانت‌ها دریافت شدند!", reply_to_message_id=g_config["channel_msg_id"])
+                        except Exception:
+                            pass
+                
+                save_database()
+                save_giveaway_config(g_config)
+                sync_xray_core()
+                push_subs_to_github()
+                
+                t_host = runner_host
+                vless_link = f"vless://{PANEL_DATABASE[new_username]['uuid']}@{DEFAULT_CLEAN_IP}:443?path=%2Fkillpv2&security=tls&encryption=none&insecure=0&type=ws&allowInsecure=0&host={t_host}&sni={t_host}#{new_username}_⚡Opt"
+                sub_link = f"https://raw.githubusercontent.com/{SUB_REPO_NAME}/main/{new_username}"
+                
+                # تولید آنی QR کد پایدار با استفاده از Google Charts API بدون قطعی
+                qr_api_url = f"https://chart.googleapis.com/chart?cht=qr&chs=350x350&chl={vless_link}"
+                
+                vol_display = f"{g_config.get('volume_value', 0)} {g_config.get('volume_unit', 'GB')}"
+                success_user_text = (
+                    f"🎉 *تبریک! کانفیگ اختصاصی و فوق‌العاده سریع شما با موفقیت ساخته شد.*\n\n"
+                    f"👤 نام کلاینت شما: `{new_username}`\n"
+                    f"💾 حجم اختصاص یافته: `{vol_display}`\n\n"
+                    f"🔗 *لینک ساب اختصاصی شما (Subscription):*\n`{sub_link}`\n\n"
+                    f"📋 *کانفیگ اتصال مستقیم (جهت کپی ضربه بزنید):*\n\n"
+                    f"`{vless_link}`"
+                )
+                
+                user_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+                user_keyboard.row(KeyboardButton("📊 مشاهده کانفیگ‌ها و حجم من"), KeyboardButton("ℹ️ راهنما"))
+                
+                # ارسال کانفیگ به همراه تصویر QR کد بدون قطعی
+                try:
+                    bot.send_photo(message.chat.id, qr_api_url, caption=success_user_text, parse_mode="Markdown", reply_markup=user_keyboard)
+                except Exception:
+                    # فال بک در صورت عدم دریافت عکس
+                    bot.send_message(message.chat.id, success_user_text, parse_mode="Markdown", reply_markup=user_keyboard)
+                
+                try:
+                    admin_alert_msg = f"🔔 کلاینت `{new_username}` توسط کاربر `{message.from_user.username or chat_id_str}` دریافت شد داداش.\n📊 آمار چالش: {g_config['claimed_count']}/{g_config['max_claims']}"
+                    bot.send_message(TELEGRAM_ADMIN_ID, admin_alert_msg)
+                except Exception:
+                    pass
+            else:
+                welcome_user_text = (
+                    "👋 سلام به ربات kill_pv2 خوش اومدی!\n"
+                    "از منوی دکمه‌ای زیر می‌تونی وضعیت کانفیگ اختصاصی خودت رو مدیریت کنی."
+                )
+                user_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+                user_keyboard.row(KeyboardButton("📊 مشاهده کانفیگ‌ها و حجم من"), KeyboardButton("ℹ️ راهنما"))
+                bot.send_message(message.chat.id, welcome_user_text, reply_markup=user_keyboard)
+
+        @bot.message_handler(func=lambda msg: msg.text == "📊 مشاهده کانفیگ‌ها و حجم من")
+        def handle_user_stats_request(message):
+            chat_id_str = str(message.chat.id)
+            user_found_configs = []
+            
+            for u_name, u_data in PANEL_DATABASE.items():
+                if str(u_data.get("tg_user_id", "")) == chat_id_str:
+                    user_found_configs.append((u_name, u_data))
+                    
+            if not user_found_configs:
+                bot.send_message(message.chat.id, "⚠️ متاسفانه هیچ کانفیگ فعالی به نام تلگرام شما ثبت نشده است.")
+                return
+                
+            now = int(time.time())
+            response_msg = "📊 *وضعیت سرویس و کانفیگ‌های شما:*\n\n"
+            
+            for u_name, u_data in user_found_configs:
+                total_limit = u_data.get("total_limit_bytes", 0)
+                used = u_data.get("used_bytes", 0)
+                rem = max(0, total_limit - used) if total_limit > 0 else 0
+                
+                passed_seconds = now - u_data.get("created_at", now)
+                total_seconds = u_data.get("expire_seconds", 2592000)
+                rem_seconds = max(0, total_seconds - passed_seconds)
+                rem_d = int(rem_seconds // 86400)
+                rem_h = int((rem_seconds % 86400) // 3600)
+                
+                status_icon = "🟢" if u_data.get("active", True) else "🔴"
+                t_host = runner_host if u_data.get("use_runner_balancer", False) else (u_data.get("custom_host", "").strip() or runner_host)
+                vless_link = f"vless://{u_data.get('uuid', '')}@{DEFAULT_CLEAN_IP}:443?path=%2Fkillpv2&security=tls&encryption=none&insecure=0&type=ws&allowInsecure=0&host={t_host}&sni={t_host}#{u_name}_⚡Opt"
+                sub_link = f"https://raw.githubusercontent.com/{SUB_REPO_NAME}/main/{u_name}"
+                
+                response_msg += (
+                    f"{status_icon} *نام سرویس:* `{u_name}`\n"
+                    f"💾 *کل حجم مجاز:* `{format_bytes_display(total_limit) if total_limit > 0 else 'نامحدود'}`\n"
+                    f"📊 *حجم مصرف شده:* `{format_bytes_display(used)}`\n"
+                    f"💾 *حجم باقی‌مانده:* `{format_bytes_display(rem) if total_limit > 0 else 'نامحدود'}`\n"
+                    f"⏳ *زمان باقی‌مانده:* `{rem_d} روز و {rem_h} ساعت`\n\n"
+                    f"🔗 *لینک ساب (Subscription):*\n`{sub_link}`\n\n"
+                    f"📋 *لینک اتصال مستقیم شما (جهت کپی ضربه بزنید):*\n"
+                    f"`{vless_link}`\n"
+                    f"─────────────────\n"
+                )
+                
+            bot.send_message(message.chat.id, response_msg, parse_mode="Markdown")
+
+        @bot.message_handler(func=lambda msg: msg.text == "ℹ️ راهنما")
+        def handle_user_help_request(message):
+            help_text = (
+                "ℹ️ *راهنمای اتصال به سرویس:*\n\n"
+                "1️⃣ ابتدا نرم‌افزار متناسب با سیستم‌عامل خود را دانلود کنید:\n"
+                "▪️ سیستم‌عامل اندروید: `v2rayNG` یا `NekoBox`\n"
+                "▪️ سیستم‌عامل آیفون (iOS): `v2box` یا `FoXray`\n"
+                "▪️ سیستم‌عامل ویندوز: `v2rayN`\n\n"
+                "2️⃣ کانفیگ دریافتی را کپی کرده و در برنامه وارد کنید (گزینه Import from clipboard).\n"
+                "3️⃣ اتصال را برقرار کنید و لذت ببرید!"
+            )
+            bot.send_message(message.chat.id, help_text, parse_mode="Markdown")
+
+        @bot.message_handler(func=lambda msg: str(msg.chat.id) == str(TELEGRAM_ADMIN_ID))
+        def handle_admin_menu_clicks(message):
+            if message.text == "🚀 ایجاد چالش جدید":
+                msg_sent = bot.send_message(message.chat.id, "🔢 لطفاً ظرفیت چالش (تعداد نفرات) را وارد کن داداش:")
+                bot.register_next_step_handler(msg_sent, process_capacity_step)
+            elif message.text == "📊 آمار چالش":
+                g_config = load_giveaway_config()
+                stat_msg = (
+                    f"📊 *آمار زنده چالش مخزن لوپ:*\n\n"
+                    f"👥 ظرفیت پر شده: `{g_config['claimed_count']}` از `{g_config['max_claims']}`\n"
+                    f"💾 حجم توزیع شده: `{g_config.get('volume_value', 0)} {g_config.get('volume_unit', 'GB')}`\n"
+                    f"⚙️ وضعیت فعلی کمپین: `{g_config.get('status', 'inactive')}`"
+                )
+                bot.send_message(message.chat.id, stat_msg, parse_mode="Markdown")
+            elif message.text == "🛠️ مدیریت وضعیت چالش":
+                g_config = load_giveaway_config()
+                status_curr = g_config.get("status", "inactive")
+                inline_markup = InlineKeyboardMarkup()
+                
+                if status_curr == "active":
+                    inline_markup.add(InlineKeyboardButton("🛑 لغو (غیرفعال‌سازی موقت)", callback_data="tg_camp_cancel"))
+                elif status_curr == "cancelled":
+                    inline_markup.add(InlineKeyboardButton("🟢 فعال‌سازی مجدد چالش", callback_data="tg_camp_activate"))
+                
+                inline_markup.add(InlineKeyboardButton("🗑️ حذف و ریست کامل چالش", callback_data="tg_camp_delete"))
+                bot.send_message(message.chat.id, f"⚙️ وضعیت فعلی چالش شما: *{status_curr}*\nیک اقدام را انتخاب کن داداش:", parse_mode="Markdown", reply_markup=inline_markup)
+
+        def process_capacity_step(message):
+            try:
+                capacity = int(message.text.strip())
+                msg_sent = bot.send_message(message.chat.id, "💾 مقدار حجم کلاینت را وارد کن داداش:")
+                bot.register_next_step_handler(msg_sent, lambda m: process_volume_value_step(m, capacity))
+            except Exception:
+                bot.send_message(message.chat.id, "❌ ظرفیت نامعتبر بود داداش. لطفاً دوباره دکمه ساخت را بزن.")
+
+        def process_volume_value_step(message,
