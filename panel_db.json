@@ -17,7 +17,7 @@
         "max_ips": 2,
         "is_proxy_type": false,
         "use_runner_balancer": false,
-        "optimization": false,
+        "optimization": true,
         "tg_user_id": "8361121191"
     },
     "primeconfigfree_2": {
@@ -38,7 +38,7 @@
         "max_ips": 10,
         "is_proxy_type": false,
         "use_runner_balancer": false,
-        "optimization": false,
+        "optimization": true,
         "tg_user_id": "8517754313"
     },
     "primeconfigfree_3": {
@@ -59,7 +59,7 @@
         "max_ips": 2,
         "is_proxy_type": false,
         "use_runner_balancer": false,
-        "optimization": false,
+        "optimization": true,
         "tg_user_id": "8517754313"
     },
     "admin": {
