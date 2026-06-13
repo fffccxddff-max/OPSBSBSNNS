@@ -65,13 +65,13 @@
     "admin": {
         "uuid": "3294ad54-0ccd-457f-a5ad-88e801e0803f",
         "total_limit_bytes": 0,
-        "used_bytes": 19069055752,
+        "used_bytes": 19102562224,
         "clean_ip": "172.64.149.23",
         "custom_host": "",
         "status": "ONLINE",
-        "last_active_time": 1781338657.4645975,
-        "down_speed": 1102524,
-        "up_speed": 186581,
+        "last_active_time": 1781338695.654748,
+        "down_speed": 903728,
+        "up_speed": 152938,
         "created_at": 1781171844,
         "expire_seconds": 266400,
         "active": true,
@@ -80,6 +80,6 @@
         "max_ips": 10,
         "is_proxy_type": false,
         "use_runner_balancer": true,
-        "optimization": true
+        "optimization": false
     }
 }
