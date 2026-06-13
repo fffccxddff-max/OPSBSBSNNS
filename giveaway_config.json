@@ -1,12 +1,10 @@
 {
-    "max_claims": 45478036,
-    "volume_value": 45478036.0,
+    "max_claims": 10,
+    "volume_value": 10000.0,
     "volume_unit": "GB",
-    "volume_gb": 45478036.0,
-    "claimed_count": 1,
-    "claimed_users": [
-        "8517754313"
-    ],
+    "volume_gb": 10000.0,
+    "claimed_count": 0,
+    "claimed_users": [],
     "status": "active",
-    "channel_msg_id": 15
+    "channel_msg_id": 31
 }
