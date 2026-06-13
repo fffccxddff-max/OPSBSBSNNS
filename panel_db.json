@@ -16,7 +16,7 @@
         "real_traffic": true,
         "max_ips": 2,
         "is_proxy_type": false,
-        "use_runner_balancer": false,
+        "use_runner_balancer": true,
         "optimization": true,
         "tg_user_id": "8361121191"
     },
@@ -37,7 +37,7 @@
         "real_traffic": true,
         "max_ips": 10,
         "is_proxy_type": false,
-        "use_runner_balancer": false,
+        "use_runner_balancer": true,
         "optimization": true,
         "tg_user_id": "8517754313"
     },
@@ -58,7 +58,7 @@
         "real_traffic": false,
         "max_ips": 2,
         "is_proxy_type": false,
-        "use_runner_balancer": false,
+        "use_runner_balancer": true,
         "optimization": true,
         "tg_user_id": "8517754313"
     },
@@ -70,8 +70,8 @@
         "custom_host": "",
         "status": "ONLINE",
         "last_active_time": 1781325904.6260896,
-        "down_speed": 1089533,
-        "up_speed": 184382,
+        "down_speed": 0,
+        "up_speed": 0,
         "created_at": 1781171844,
         "expire_seconds": 266400,
         "active": true,
