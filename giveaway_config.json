@@ -3,9 +3,10 @@
     "volume_value": 10000.0,
     "volume_unit": "GB",
     "volume_gb": 10000.0,
-    "claimed_count": 1,
+    "claimed_count": 2,
     "claimed_users": [
-        "8517754313"
+        "8517754313",
+        "6580954743"
     ],
     "status": "active",
     "channel_msg_id": 31
